@@ -44,6 +44,33 @@ def find_poppler_path() -> str | None:
     return matches[0] if matches else None
 
 
+def try_extract_pdf_text(path: Path) -> str | None:
+    """Extract text directly from a digital (non-scanned) PDF using pypdf.
+
+    Returns the extracted text if the PDF contains a real text layer, or None
+    if the PDF appears to be scanned/image-based and needs OCR.
+
+    Heuristic: require at least 50 meaningful (printable, non-whitespace)
+    characters per page on average. Scanned pages typically yield 0–10 stray
+    characters; digital pages yield hundreds to thousands.
+    """
+    try:
+        import pypdf
+    except ImportError:
+        return None
+    try:
+        reader = pypdf.PdfReader(str(path))
+        if not reader.pages:
+            return None
+        page_texts = [page.extract_text() or "" for page in reader.pages]
+        full_text  = "\n\n".join(page_texts)
+        meaningful = sum(1 for c in full_text if c.isprintable() and not c.isspace())
+        threshold  = max(100, len(reader.pages) * 50)
+        return full_text if meaningful >= threshold else None
+    except Exception:
+        return None
+
+
 def get_api_key(provided: str | None) -> str:
     key = provided or os.environ.get("ANTHROPIC_API_KEY")
     if not key:
@@ -277,7 +304,16 @@ def main():
     print(f"Processing: {input_path.name}  [model: {args.model}]")
 
     if suffix == ".pdf":
-        text = ocr_pdf(input_path, client, args.model, args.dpi, args.force_images)
+        if not args.force_images:
+            direct = try_extract_pdf_text(input_path)
+            if direct:
+                print("  Direct text extraction — digital PDF, no OCR needed.")
+                text = direct
+            else:
+                print("  No text layer detected — running AI OCR.")
+                text = ocr_pdf(input_path, client, args.model, args.dpi, args.force_images)
+        else:
+            text = ocr_pdf(input_path, client, args.model, args.dpi, args.force_images)
     elif suffix in image_ext:
         text = ocr_image_file(input_path, client, args.model)
     else:

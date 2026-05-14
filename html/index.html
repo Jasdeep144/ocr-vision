@@ -591,6 +591,21 @@
       display: inline-flex; align-items: center; gap: 7px;
       opacity: .7; cursor: not-allowed;
     }
+
+    /* ── Extraction method badge ── */
+    .method-badge {
+      font-size: 11px; font-weight: 700;
+      padding: 3px 10px; border-radius: var(--rf);
+      letter-spacing: .01em; white-space: nowrap;
+    }
+    .method-badge.direct {
+      background: var(--teal-light); color: var(--teal);
+      border: 1px solid #99f6e4;
+    }
+    .method-badge.ocr {
+      background: var(--blue-light); color: var(--blue);
+      border: 1px solid var(--blue-border);
+    }
   </style>
 </head>
 <body>
@@ -785,9 +800,12 @@
             </svg>
             Extracted Text
           </div>
-          <div class="text-stats">
-            <span class="stat"><strong id="wc">—</strong> words</span>
-            <span class="stat"><strong id="cc">—</strong> chars</span>
+          <div style="display:flex;align-items:center;gap:12px">
+            <span class="method-badge" id="method-badge"></span>
+            <div class="text-stats">
+              <span class="stat"><strong id="wc">—</strong> words</span>
+              <span class="stat"><strong id="cc">—</strong> chars</span>
+            </div>
           </div>
         </div>
         <div class="text-body">
@@ -1067,7 +1085,7 @@
   /* ── State ── */
   let curFilename  = '';
   let progTimer    = null;
-  let batchFiles   = [];    // [{file, text, status:'pending'|'processing'|'done'|'error', error:''}]
+  let batchFiles   = [];    // [{file, text, status, error, method}]
   let isBatchMode  = false;
   let activeTabIdx = -1;
 
@@ -1115,7 +1133,7 @@
       go(valid[0]);
     } else {
       isBatchMode = true;
-      batchFiles  = valid.map(f => ({ file: f, text: '', status: 'pending', error: '' }));
+      batchFiles  = valid.map(f => ({ file: f, text: '', status: 'pending', error: '', method: '' }));
       showBatchQueue();
     }
   }
@@ -1193,6 +1211,7 @@
     const imgExts = ['png','jpg','jpeg','gif','webp','bmp'];
     updateFilePanel(file, ext, imgExts.includes(ext));
     textarea.value = data.text;
+    setMethodBadge(data.method || 'ocr');
     updateCounts();
     const words = data.text.trim().split(/\s+/).filter(Boolean).length;
     document.getElementById('result-meta').textContent =
@@ -1295,7 +1314,9 @@
       batchFiles[i].status = 'processing';
       updateBatchItemStatus(i);
       try {
-        batchFiles[i].text   = await ocrFileAsync(batchFiles[i].file);
+        const result         = await ocrFileAsync(batchFiles[i].file);
+        batchFiles[i].text   = result.text;
+        batchFiles[i].method = result.method;
         batchFiles[i].status = 'done';
       } catch (e) {
         batchFiles[i].error  = e.message || 'Processing failed';
@@ -1317,7 +1338,8 @@
       xhr.onload = () => {
         if (xhr.status === 200) {
           const data = JSON.parse(xhr.responseText);
-          data.error ? reject(new Error(data.error)) : resolve(data.text);
+          if (data.error) reject(new Error(data.error));
+          else resolve({ text: data.text, method: data.method || 'ocr' });
         } else {
           let msg = 'Server error';
           try { msg = JSON.parse(xhr.responseText).error || msg; } catch {}
@@ -1383,6 +1405,7 @@
     textarea.value = bf.status === 'done'  ? bf.text
                    : bf.status === 'error' ? `Error processing this file:\n${bf.error}`
                    : '';
+    setMethodBadge(bf.status === 'done' ? (bf.method || 'ocr') : '');
     updateCounts();
 
     const words = bf.text ? bf.text.trim().split(/\s+/).filter(Boolean).length : 0;
@@ -1447,6 +1470,25 @@
     }
   }
 
+  /* ── Method badge ── */
+  function setMethodBadge(method) {
+    const el = document.getElementById('method-badge');
+    if (!el) return;
+    if (method === 'direct') {
+      el.className   = 'method-badge direct';
+      el.textContent = '⚡ Direct';
+      el.title       = 'Text extracted directly from the PDF — no AI OCR needed';
+    } else if (method === 'ocr') {
+      el.className   = 'method-badge ocr';
+      el.textContent = '✦ AI OCR';
+      el.title       = 'Text extracted using AI vision — document was scanned or image-based';
+    } else {
+      el.className   = 'method-badge';
+      el.textContent = '';
+      el.title       = '';
+    }
+  }
+
   /* ── Live counts ── */
   function updateCounts() {
     const t = textarea.value;
@@ -1499,6 +1541,7 @@
     resetToolBtn('translate-btn', TRANSLATE_BTN_HTML);
     resetToolBtn('legal-btn',     LEGAL_BTN_HTML);
     resetToolBtn('combined-btn',  COMBINED_BTN_HTML);
+    setMethodBadge('');
     zone.style.display = '';
     inp.value      = '';
     curFilename    = '';

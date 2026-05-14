@@ -14,7 +14,7 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template, request
 
 sys.path.insert(0, str(Path(__file__).parent))
-from ocr_document import make_client, ocr_image_file, ocr_pdf
+from ocr_document import make_client, ocr_image_file, ocr_pdf, try_extract_pdf_text
 
 app = Flask(__name__, template_folder="html")
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB
@@ -130,10 +130,15 @@ def ocr_endpoint():
 
     try:
         if suffix == ".pdf":
+            if not force_images:
+                direct_text = try_extract_pdf_text(tmp_path)
+                if direct_text:
+                    return jsonify({"text": direct_text, "filename": file.filename, "method": "direct"})
             text = ocr_pdf(tmp_path, client, model, dpi, force_images)
+            return jsonify({"text": text, "filename": file.filename, "method": "ocr"})
         else:
             text = ocr_image_file(tmp_path, client, model)
-        return jsonify({"text": text, "filename": file.filename})
+            return jsonify({"text": text, "filename": file.filename, "method": "ocr"})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
     finally:

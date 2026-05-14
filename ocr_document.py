@@ -56,7 +56,11 @@ def get_api_key(provided: str | None) -> str:
 
 def make_client(api_key: str):
     import anthropic
-    return anthropic.Anthropic(api_key=api_key)
+    kwargs = {"api_key": api_key}
+    base_url = os.environ.get("ANTHROPIC_BASE_URL", "").strip()
+    if base_url:
+        kwargs["base_url"] = base_url
+    return anthropic.Anthropic(**kwargs)
 
 
 def extract_text(response) -> str:

@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: ocr-vision
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn ocr_web:app --timeout 300 --bind 0.0.0.0:$PORT
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false

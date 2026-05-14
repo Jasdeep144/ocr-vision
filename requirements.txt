@@ -1,0 +1,6 @@
+flask
+gunicorn
+anthropic
+Pillow
+pdf2image
+pypdf

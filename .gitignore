@@ -1,0 +1,57 @@
+# Windows profile clutter — ignore everything except the app
+NTUSER.DAT
+NTUSER.DAT{*
+ntuser.dat.LOG*
+ntuser.ini
+*.blf
+*.regtrans-ms
+*.TxR.*
+
+# Common home-directory folders to exclude
+AppData/
+Application Data/
+Contacts/
+Cookies/
+Desktop/
+Documents/
+Downloads/
+Favorites/
+Links/
+Local Settings/
+Music/
+My Documents/
+NetHood/
+OneDrive/
+Pictures/
+PrintHood/
+Recent/
+Saved Games/
+Searches/
+SendTo/
+Start Menu/
+Videos/
+TI Drive/
+TICloudAgent/
+ClaudeChat/
+paddle_venv/
+~$*
+
+# Other OCR scripts (not part of this web app)
+ocr_easyocr.py
+ocr_mistral.py
+ocr_paddle.py
+ocr_paddlevl.py
+ocr_tesseract.py
+
+# Output text files
+output*.txt
+test.md
+*.md
+anthro_vars.txt
+download_chunked.py
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.env

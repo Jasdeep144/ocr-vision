@@ -223,6 +223,11 @@ def ocr_pdf(path: Path, client, model: str, dpi: int, force_images: bool) -> str
         try:
             return ocr_pdf_native(path, client, model, pages or MAX_PDF_PAGES_NATIVE)
         except Exception as e:
+            err = str(e).lower()
+            if "authentication_error" in err or "invalid x-api-key" in err or "401" in err:
+                raise RuntimeError(
+                    "Anthropic API authentication failed — check your ANTHROPIC_API_KEY."
+                ) from e
             print(f"  Native PDF failed ({e}), falling back to image-per-page...")
 
     print(f"  Using image-per-page mode ({size_mb:.1f} MB, {pages_str} pages)...")

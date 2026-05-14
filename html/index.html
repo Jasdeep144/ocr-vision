@@ -606,6 +606,19 @@
       background: var(--blue-light); color: var(--blue);
       border: 1px solid var(--blue-border);
     }
+    .reocr-btn {
+      font-size: 11px; font-weight: 600;
+      background: none; border: 1px solid var(--g300);
+      color: var(--g500); padding: 3px 9px; border-radius: var(--rf);
+      cursor: pointer; font-family: inherit;
+      display: inline-flex; align-items: center; gap: 5px;
+      transition: border-color .15s, color .15s, background .15s;
+      white-space: nowrap;
+    }
+    .reocr-btn:hover:not(:disabled) {
+      border-color: var(--blue); color: var(--blue); background: var(--blue-light);
+    }
+    .reocr-btn:disabled { opacity: .6; cursor: not-allowed; }
   </style>
 </head>
 <body>
@@ -802,6 +815,14 @@
           </div>
           <div style="display:flex;align-items:center;gap:12px">
             <span class="method-badge" id="method-badge"></span>
+            <button class="reocr-btn" id="reocr-btn" style="display:none"
+                    onclick="reprocessWithOCR()"
+                    title="Re-extract this document using AI vision for higher accuracy">
+              <svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/>
+              </svg>
+              Use AI OCR
+            </button>
             <div class="text-stats">
               <span class="stat"><strong id="wc">—</strong> words</span>
               <span class="stat"><strong id="cc">—</strong> chars</span>
@@ -1084,6 +1105,7 @@
 <script>
   /* ── State ── */
   let curFilename  = '';
+  let curFile      = null;
   let progTimer    = null;
   let batchFiles   = [];    // [{file, text, status, error, method}]
   let isBatchMode  = false;
@@ -1209,6 +1231,7 @@
   function showResults(data, file) {
     const ext     = file.name.split('.').pop().toLowerCase();
     const imgExts = ['png','jpg','jpeg','gif','webp','bmp'];
+    curFile = file;
     updateFilePanel(file, ext, imgExts.includes(ext));
     textarea.value = data.text;
     setMethodBadge(data.method || 'ocr');
@@ -1472,22 +1495,28 @@
 
   /* ── Method badge ── */
   function setMethodBadge(method) {
-    const el = document.getElementById('method-badge');
+    const el  = document.getElementById('method-badge');
+    const btn = document.getElementById('reocr-btn');
     if (!el) return;
     if (method === 'direct') {
       el.className   = 'method-badge direct';
       el.textContent = '⚡ Direct';
       el.title       = 'Text extracted directly from the PDF — no AI OCR needed';
+      if (btn) { btn.style.display = ''; btn.disabled = false; btn.innerHTML = reocrBtnInner; }
     } else if (method === 'ocr') {
       el.className   = 'method-badge ocr';
       el.textContent = '✦ AI OCR';
       el.title       = 'Text extracted using AI vision — document was scanned or image-based';
+      if (btn) btn.style.display = 'none';
     } else {
       el.className   = 'method-badge';
       el.textContent = '';
       el.title       = '';
+      if (btn) btn.style.display = 'none';
     }
   }
+
+  const reocrBtnInner = `<svg width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z"/></svg> Use AI OCR`;
 
   /* ── Live counts ── */
   function updateCounts() {
@@ -1545,6 +1574,7 @@
     zone.style.display = '';
     inp.value      = '';
     curFilename    = '';
+    curFile        = null;
     batchFiles     = [];
     isBatchMode    = false;
     activeTabIdx   = -1;
@@ -1610,6 +1640,49 @@
     btn.disabled  = false;
     btn.className = 'btn btn-secondary';
     btn.innerHTML = html;
+  }
+
+  /* ── Re-process with AI OCR ── */
+  async function reprocessWithOCR() {
+    const file = (isBatchMode && activeTabIdx >= 0)
+      ? batchFiles[activeTabIdx].file
+      : curFile;
+    if (!file) { toast('⚠', 'File reference unavailable'); return; }
+
+    const btn = document.getElementById('reocr-btn');
+    btn.disabled = true;
+    btn.innerHTML = `<span style="width:9px;height:9px;border:2px solid var(--blue);border-top-color:transparent;border-radius:50%;display:inline-block;animation:spin .6s linear infinite"></span> Processing…`;
+
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('skip_direct', 'true');
+
+    try {
+      const resp = await fetch('/api/ocr', { method: 'POST', body: fd });
+      const data = await resp.json();
+      if (data.error) {
+        showErr(data.error);
+        btn.disabled = false;
+        btn.innerHTML = reocrBtnInner;
+        return;
+      }
+      textarea.value = data.text;
+      if (isBatchMode && activeTabIdx >= 0) {
+        batchFiles[activeTabIdx].text   = data.text;
+        batchFiles[activeTabIdx].method = 'ocr';
+      }
+      updateCounts();
+      setMethodBadge('ocr');
+      resetToolBtn('translate-btn', TRANSLATE_BTN_HTML);
+      resetToolBtn('legal-btn', LEGAL_BTN_HTML);
+      document.getElementById('legal-section').classList.remove('show');
+      document.getElementById('legal-body').innerHTML = '';
+      toast('✦', 'Re-processed with AI OCR');
+    } catch (e) {
+      showErr('Re-processing failed: ' + e.message);
+      btn.disabled = false;
+      btn.innerHTML = reocrBtnInner;
+    }
   }
 
   /* ── Translate ── */

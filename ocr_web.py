@@ -120,6 +120,7 @@ def ocr_endpoint():
 
     model = request.form.get("model", "claude-sonnet-4-6")
     force_images = request.form.get("force_images", "false").lower() == "true"
+    skip_direct  = request.form.get("skip_direct",  "false").lower() == "true"
     dpi = int(request.form.get("dpi", 200))
 
     client = make_client(api_key)
@@ -130,7 +131,7 @@ def ocr_endpoint():
 
     try:
         if suffix == ".pdf":
-            if not force_images:
+            if not force_images and not skip_direct:
                 direct_text = try_extract_pdf_text(tmp_path)
                 if direct_text:
                     return jsonify({"text": direct_text, "filename": file.filename, "method": "direct"})

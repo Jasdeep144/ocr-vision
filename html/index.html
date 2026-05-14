@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/marked@13/marked.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -468,6 +469,64 @@
     /* ── Divider between upload and results ── */
     .section-gap { height: 0; }
     .results.show + .section-gap { display: none; }
+
+    /* ── Post-processing tools ── */
+    .post-tools {
+      display: none;
+      max-width: 1100px; margin: 0 auto;
+      padding: 0 24px 28px;
+    }
+    .post-tools.show { display: block; animation: slide-up .4s ease both; }
+    .post-tools-head { margin-bottom: 14px; }
+    .post-tools-head h3 { font-size: 16px; font-weight: 700; color: var(--g900); }
+    .post-tools-head p  { font-size: 13px; color: var(--g500); margin-top: 3px; }
+    .tools-row { display: flex; flex-direction: column; gap: 12px; }
+    @media (min-width: 640px) { .tools-row { flex-direction: row; } }
+    .tool-card {
+      flex: 1;
+      background: var(--white); border: 1px solid var(--g100);
+      border-radius: var(--r); padding: 18px 20px;
+      box-shadow: var(--shadow-sm);
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .tool-card:hover { border-color: var(--blue-border); box-shadow: var(--shadow-md); }
+    .tool-card-left { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0; }
+    .tool-icon-box {
+      width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .tool-icon-box.blue   { background: var(--blue-light); }
+    .tool-icon-box.purple { background: #f3e8ff; }
+    .tool-title { font-size: 14px; font-weight: 600; color: var(--g900); margin-bottom: 3px; }
+    .tool-desc  { font-size: 12px; color: var(--g500); line-height: 1.5; }
+
+    /* ── Legal summary output ── */
+    .legal-section {
+      display: none;
+      max-width: 1100px; margin: 0 auto;
+      padding: 0 24px 40px;
+    }
+    .legal-section.show { display: block; animation: slide-up .4s ease both; }
+    .legal-body {
+      padding: 28px 32px;
+      font-size: 14px; line-height: 1.8; color: var(--g800);
+    }
+    .legal-body h2 {
+      font-size: 14px; font-weight: 700; color: var(--g900);
+      margin: 22px 0 8px; padding-bottom: 7px;
+      border-bottom: 1px solid var(--g100);
+    }
+    .legal-body h2:first-child { margin-top: 0; }
+    .legal-body p   { margin-bottom: 8px; }
+    .legal-body ul  { padding-left: 20px; margin-bottom: 10px; }
+    .legal-body li  { margin-bottom: 5px; }
+    .legal-body strong { color: var(--g900); font-weight: 600; }
+    .legal-loading { padding: 32px; text-align: center; }
+    .btn-loading {
+      display: inline-flex; align-items: center; gap: 7px;
+      opacity: .7; cursor: not-allowed;
+    }
   </style>
 </head>
 <body>
@@ -688,6 +747,120 @@
     </div>
   </section>
 
+  <!-- Post-Processing Tools -->
+  <section class="post-tools" id="post-tools" aria-label="Post-processing tools">
+    <div class="post-tools-head">
+      <h3>Further Analysis</h3>
+      <p>Apply additional AI processing to the extracted text</p>
+    </div>
+    <div class="tools-row">
+
+      <!-- Translate -->
+      <div class="tool-card">
+        <div class="tool-card-left">
+          <div class="tool-icon-box blue" aria-hidden="true">
+            <svg width="20" height="20" fill="none" stroke="#2563eb" stroke-width="1.75" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10"/>
+              <path stroke-linecap="round" d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
+            </svg>
+          </div>
+          <div>
+            <div class="tool-title">Translate to English</div>
+            <div class="tool-desc">Convert the extracted text to English, preserving all structure and formatting</div>
+          </div>
+        </div>
+        <button class="btn btn-secondary" id="translate-btn" onclick="translateText()"
+                aria-label="Translate extracted text to English">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10"/>
+            <path stroke-linecap="round" d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
+          </svg>
+          Translate
+        </button>
+      </div>
+
+      <!-- Legal Summary -->
+      <div class="tool-card">
+        <div class="tool-card-left">
+          <div class="tool-icon-box purple" aria-hidden="true">
+            <svg width="20" height="20" fill="none" stroke="#7c3aed" stroke-width="1.75" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M12 3v18M5 8l7-5 7 5M3 20h18M8 12H5m14 0h-3
+                       m-4 4H8m8 0h-4"/>
+            </svg>
+          </div>
+          <div>
+            <div class="tool-title">Legal Summary</div>
+            <div class="tool-desc">AI-powered analysis: parties, obligations, dates, red flags &amp; overall assessment</div>
+          </div>
+        </div>
+        <button class="btn btn-secondary" id="legal-btn" onclick="legalSummary()"
+                aria-label="Generate legal summary of document">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108
+                     c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08
+                     m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75
+                     a2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15
+                     c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08
+                     C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25
+                     c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375
+                     c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12z
+                     m0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"/>
+          </svg>
+          Analyse
+        </button>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Legal Summary Output -->
+  <section class="legal-section" id="legal-section" aria-label="Legal summary output" aria-live="polite">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-head-title">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108
+                     c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08
+                     m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75
+                     a2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15
+                     c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08
+                     C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25
+                     c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375
+                     c0-.621-.504-1.125-1.125-1.125H8.25z"/>
+          </svg>
+          Legal Summary
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary" onclick="copyLegal()" aria-label="Copy legal summary">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75
+                a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75
+                a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25
+                c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375
+                c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375
+                a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875
+                a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5
+                a3.375 3.375 0 00-3.375-3.375H9.75"/>
+            </svg>
+            Copy
+          </button>
+          <button class="btn btn-primary" onclick="downloadLegal()" aria-label="Download legal summary as text file">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round"
+                    d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5
+                       M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+            </svg>
+            Download .txt
+          </button>
+        </div>
+      </div>
+      <div class="legal-body" id="legal-body"></div>
+    </div>
+  </section>
+
   <!-- Features -->
   <section class="features" id="features" aria-labelledby="features-heading">
     <div class="features-grid">
@@ -879,6 +1052,7 @@
     procCard.classList.remove('show');
     zone.style.display = '';
     results.classList.add('show');
+    document.getElementById('post-tools').classList.add('show');
     results.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -926,6 +1100,11 @@
     clearInterval(progTimer);
     procCard.classList.remove('show');
     results.classList.remove('show');
+    document.getElementById('post-tools').classList.remove('show');
+    document.getElementById('legal-section').classList.remove('show');
+    document.getElementById('legal-body').innerHTML = '';
+    resetToolBtn('translate-btn', TRANSLATE_BTN_HTML);
+    resetToolBtn('legal-btn',     LEGAL_BTN_HTML);
     zone.style.display = '';
     inp.value = '';
     curFilename = '';
@@ -964,6 +1143,91 @@
     if (b < 1024)        return b + ' B';
     if (b < 1048576)     return (b / 1024).toFixed(1) + ' KB';
     return (b / 1048576).toFixed(2) + ' MB';
+  }
+
+  /* ── Tool button helpers ── */
+  const TRANSLATE_BTN_HTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg> Translate`;
+  const LEGAL_BTN_HTML     = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z"/></svg> Analyse`;
+
+  function setToolLoading(btn, msg) {
+    btn.disabled = true;
+    btn.innerHTML = `<div class="spinner-track" style="width:13px;height:13px;border-width:2px;flex-shrink:0;animation:spin .75s linear infinite"></div> ${msg}`;
+  }
+  function resetToolBtn(id, html) {
+    const btn = document.getElementById(id);
+    btn.disabled = false;
+    btn.className = 'btn btn-secondary';
+    btn.innerHTML = html;
+  }
+
+  /* ── Translate ── */
+  function translateText() {
+    const text = textarea.value.trim();
+    if (!text) { toast('⚠', 'No text to translate'); return; }
+    const btn = document.getElementById('translate-btn');
+    setToolLoading(btn, 'Translating…');
+
+    fetch('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { showErr(data.error); resetToolBtn('translate-btn', TRANSLATE_BTN_HTML); return; }
+      textarea.value = data.text;
+      updateCounts();
+      toast('🌐', 'Translated to English');
+      btn.disabled = false;
+      btn.className = 'btn btn-success';
+      btn.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4.5 12.75l6 6 9-13.5"/></svg> Translated`;
+    })
+    .catch(() => { showErr('Translation failed — check server logs'); resetToolBtn('translate-btn', TRANSLATE_BTN_HTML); });
+  }
+
+  /* ── Legal Summary ── */
+  function legalSummary() {
+    const text = textarea.value.trim();
+    if (!text) { toast('⚠', 'No text to analyse'); return; }
+    const btn      = document.getElementById('legal-btn');
+    const legalSec = document.getElementById('legal-section');
+    const legalBod = document.getElementById('legal-body');
+
+    setToolLoading(btn, 'Analysing…');
+    legalBod.innerHTML = `<div class="legal-loading"><div class="spinner-track" style="width:32px;height:32px;border-width:2px;margin:0 auto 14px;animation:spin .75s linear infinite"></div><p style="color:var(--g400);font-size:13px">Generating legal analysis…</p></div>`;
+    legalSec.classList.add('show');
+    setTimeout(() => legalSec.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+
+    fetch('/api/legal-summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) { showErr(data.error); legalBod.innerHTML = ''; legalSec.classList.remove('show'); resetToolBtn('legal-btn', LEGAL_BTN_HTML); return; }
+      legalBod.innerHTML = marked.parse(data.summary);
+      toast('⚖️', 'Legal summary ready');
+      btn.disabled = false;
+      btn.className = 'btn btn-success';
+      btn.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4.5 12.75l6 6 9-13.5"/></svg> Done`;
+    })
+    .catch(() => { showErr('Legal summary failed'); legalBod.innerHTML = ''; legalSec.classList.remove('show'); resetToolBtn('legal-btn', LEGAL_BTN_HTML); });
+  }
+
+  /* ── Copy / download legal summary ── */
+  function copyLegal() {
+    const text = document.getElementById('legal-body').innerText;
+    navigator.clipboard.writeText(text).then(() => toast('✓', 'Summary copied!'));
+  }
+  function downloadLegal() {
+    const text  = document.getElementById('legal-body').innerText;
+    const stem  = curFilename.replace(/\.[^.]+$/, '');
+    const fname = stem + '_legal_summary.txt';
+    const url   = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+    Object.assign(document.createElement('a'), { href: url, download: fname }).click();
+    URL.revokeObjectURL(url);
+    toast('⬇', `Saved as ${fname}`);
   }
 </script>
 </body>

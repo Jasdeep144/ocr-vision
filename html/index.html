@@ -173,7 +173,7 @@
       animation: gradient-pan 5s ease infinite;
     }
     .hero-sub {
-      font-size: 17px; color: var(--g500); max-width: 500px;
+      font-size: 17px; color: var(--g500); max-width: 520px;
       margin: 0 auto 44px; font-weight: 400;
       animation: slide-up .5s ease .12s both;
     }
@@ -258,6 +258,73 @@
     .upload-zone.over .fmt-chip {
       background: var(--white); border-color: var(--blue-border); color: var(--blue);
     }
+
+    /* ── Batch Queue ── */
+    .batch-queue {
+      display: none;
+      background: var(--white); border-radius: var(--rl);
+      border: 1px solid var(--g200); box-shadow: var(--shadow-md);
+      overflow: hidden;
+    }
+    .batch-queue.show { display: block; animation: slide-up .35s ease both; }
+    .batch-queue-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 22px; border-bottom: 1px solid var(--g100);
+      background: var(--g50); flex-wrap: wrap; gap: 12px;
+    }
+    .batch-queue-title { font-size: 15px; font-weight: 700; color: var(--g900); }
+    .batch-queue-sub   { font-size: 13px; color: var(--g500); margin-top: 2px; }
+    .batch-queue-actions { display: flex; gap: 10px; }
+    .batch-list { padding: 6px 0; max-height: 320px; overflow-y: auto; }
+    .batch-item {
+      display: flex; align-items: center; gap: 14px;
+      padding: 10px 22px; transition: background .15s;
+    }
+    .batch-item:hover { background: var(--g50); }
+    .batch-item-icon {
+      width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .batch-item-icon.pdf { background: #fee2e2; }
+    .batch-item-icon.img { background: #ede9fe; }
+    .batch-item-info { flex: 1; min-width: 0; }
+    .batch-item-name {
+      font-size: 13px; font-weight: 600; color: var(--g800);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .batch-item-size { font-size: 12px; color: var(--g400); margin-top: 1px; }
+    .status-chip {
+      font-size: 11px; font-weight: 600; padding: 3px 10px;
+      border-radius: var(--rf); white-space: nowrap; flex-shrink: 0;
+      display: inline-flex; align-items: center; gap: 5px;
+    }
+    .status-chip.pending    { background: var(--g100); color: var(--g500); }
+    .status-chip.processing { background: var(--blue-light); color: var(--blue); }
+    .status-chip.done       { background: var(--green-light); color: var(--green-text); }
+    .status-chip.error      { background: var(--red-bg); color: var(--red-text); }
+
+    /* ── Tab bar ── */
+    .tab-bar {
+      display: none;
+      border-bottom: 2px solid var(--g200); margin-bottom: 22px;
+      overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none;
+    }
+    .tab-bar::-webkit-scrollbar { display: none; }
+    .tab-bar.show { display: flex; }
+    .tab {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 10px 18px; font-size: 13px; font-weight: 500; color: var(--g500);
+      background: none; border: none; cursor: pointer; white-space: nowrap;
+      border-bottom: 2px solid transparent; margin-bottom: -2px;
+      font-family: inherit; transition: color .18s, border-color .18s;
+    }
+    .tab:hover { color: var(--g800); }
+    .tab.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
+    .tab-dot {
+      width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+    }
+    .tab-dot.done  { background: #22c55e; }
+    .tab-dot.error { background: #ef4444; }
 
     /* ── Error ── */
     .err-box {
@@ -466,10 +533,6 @@
     }
     #toast.show { transform: translateX(-50%) translateY(0); }
 
-    /* ── Divider between upload and results ── */
-    .section-gap { height: 0; }
-    .results.show + .section-gap { display: none; }
-
     /* ── Post-processing tools ── */
     .post-tools {
       display: none;
@@ -481,9 +544,9 @@
     .post-tools-head h3 { font-size: 16px; font-weight: 700; color: var(--g900); }
     .post-tools-head p  { font-size: 13px; color: var(--g500); margin-top: 3px; }
     .tools-row { display: flex; flex-direction: column; gap: 12px; }
-    @media (min-width: 640px) { .tools-row { flex-direction: row; } }
+    @media (min-width: 640px) { .tools-row { flex-direction: row; flex-wrap: wrap; } }
     .tool-card {
-      flex: 1;
+      flex: 1; min-width: 260px;
       background: var(--white); border: 1px solid var(--g100);
       border-radius: var(--r); padding: 18px 20px;
       box-shadow: var(--shadow-sm);
@@ -498,6 +561,7 @@
     }
     .tool-icon-box.blue   { background: var(--blue-light); }
     .tool-icon-box.purple { background: #f3e8ff; }
+    .tool-icon-box.amber  { background: #fffbeb; }
     .tool-title { font-size: 14px; font-weight: 600; color: var(--g900); margin-bottom: 3px; }
     .tool-desc  { font-size: 12px; color: var(--g500); line-height: 1.5; }
 
@@ -569,17 +633,17 @@
       Transform Images to<br><span class="grad">Text Instantly</span>
     </h1>
     <p class="hero-sub">
-      Extract text from any image or PDF with near-perfect accuracy using Claude's advanced multimodal AI.
+      Extract text from any image or PDF — single files or entire document batches — with near-perfect accuracy using Claude's advanced multimodal AI.
     </p>
 
     <div class="upload-wrap">
 
       <!-- Upload zone -->
       <div class="upload-zone" id="upload-zone" role="button" tabindex="0"
-           aria-label="Upload zone — drag and drop or click to select a file">
-        <input type="file" id="file-input"
+           aria-label="Upload zone — drag and drop or click to select files">
+        <input type="file" id="file-input" multiple
                accept=".pdf,.png,.jpg,.jpeg,.tiff,.tif,.bmp,.gif,.webp"
-               aria-label="Select file for OCR" />
+               aria-label="Select files for OCR" />
 
         <div class="upload-icon" aria-hidden="true">
           <svg fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
@@ -589,8 +653,8 @@
           </svg>
         </div>
 
-        <p class="upload-title">Drop your file here</p>
-        <p class="upload-hint">or <b onclick="document.getElementById('file-input').click()">browse from your computer</b></p>
+        <p class="upload-title">Drop your files here</p>
+        <p class="upload-hint">or <b onclick="document.getElementById('file-input').click()">browse from your computer</b> — single or multiple files</p>
 
         <div class="format-row" aria-label="Supported formats">
           <span class="fmt-chip">PDF</span>
@@ -612,7 +676,27 @@
         <span id="err-msg">An error occurred.</span>
       </div>
 
-      <!-- Processing -->
+      <!-- Batch Queue -->
+      <div class="batch-queue" id="batch-queue">
+        <div class="batch-queue-head">
+          <div>
+            <p class="batch-queue-title">Ready to Process</p>
+            <p class="batch-queue-sub" id="batch-count">0 files selected</p>
+          </div>
+          <div class="batch-queue-actions">
+            <button class="btn btn-secondary" id="cancel-batch-btn" onclick="cancelBatch()">Cancel</button>
+            <button class="btn btn-primary" id="process-btn" onclick="startBatch()">
+              <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z"/>
+              </svg>
+              Process All
+            </button>
+          </div>
+        </div>
+        <div class="batch-list" id="batch-list"></div>
+      </div>
+
+      <!-- Processing (single file) -->
       <div class="proc-card" id="proc-card" role="status" aria-live="polite" aria-label="Processing">
         <div class="spinner-wrap" aria-hidden="true">
           <div class="spinner-track"></div>
@@ -633,19 +717,23 @@
 
   <!-- Results -->
   <section class="results" id="results" aria-labelledby="results-heading" aria-live="polite">
+
+    <!-- Tab bar (batch mode only) -->
+    <div class="tab-bar" id="tab-bar"></div>
+
     <div class="results-hd">
       <div class="results-hd-left">
         <h2 id="results-heading">Extraction Complete</h2>
         <p id="result-meta">—</p>
       </div>
       <div class="results-btns">
-        <button class="btn btn-secondary" onclick="reset()" aria-label="Upload a new file">
+        <button class="btn btn-secondary" onclick="reset()" aria-label="Start over with new files">
           <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path stroke-linecap="round"
                   d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9
                      m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
           </svg>
-          New File
+          New Files
         </button>
         <button class="btn btn-primary" onclick="download()" aria-label="Download extracted text as .txt">
           <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -766,7 +854,7 @@
           </div>
           <div>
             <div class="tool-title">Translate to English</div>
-            <div class="tool-desc">Convert the extracted text to English, preserving all structure and formatting</div>
+            <div class="tool-desc">Convert the active document's text to English, preserving all structure and formatting</div>
           </div>
         </div>
         <button class="btn btn-secondary" id="translate-btn" onclick="translateText()"
@@ -791,7 +879,7 @@
           </div>
           <div>
             <div class="tool-title">Legal Summary</div>
-            <div class="tool-desc">AI-powered analysis: parties, obligations, dates, red flags &amp; overall assessment</div>
+            <div class="tool-desc">AI analysis of the active document: parties, obligations, dates, red flags &amp; assessment</div>
           </div>
         </div>
         <button class="btn btn-secondary" id="legal-btn" onclick="legalSummary()"
@@ -812,10 +900,36 @@
         </button>
       </div>
 
+      <!-- Combined Legal Assessment (multi-file only) -->
+      <div class="tool-card" id="combined-tool-card" style="display:none">
+        <div class="tool-card-left">
+          <div class="tool-icon-box amber" aria-hidden="true">
+            <svg width="20" height="20" fill="none" stroke="#d97706" stroke-width="1.75" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75
+                       a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z"/>
+            </svg>
+          </div>
+          <div>
+            <div class="tool-title">Combined Assessment</div>
+            <div class="tool-desc">Cross-document analysis: inconsistencies, consolidated obligations, parties &amp; red flags across all files</div>
+          </div>
+        </div>
+        <button class="btn btn-secondary" id="combined-btn" onclick="combinedSummary()"
+                aria-label="Generate combined legal assessment for all documents">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75
+                     a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z"/>
+          </svg>
+          Assess All
+        </button>
+      </div>
+
     </div>
   </section>
 
-  <!-- Legal Summary Output -->
+  <!-- Individual Legal Summary Output -->
   <section class="legal-section" id="legal-section" aria-label="Legal summary output" aria-live="polite">
     <div class="card">
       <div class="card-head">
@@ -831,7 +945,7 @@
                      c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375
                      c0-.621-.504-1.125-1.125-1.125H8.25z"/>
           </svg>
-          Legal Summary
+          Legal Summary — <span id="legal-section-filename" style="font-weight:400;color:var(--g500)"></span>
         </div>
         <div style="display:flex;gap:8px">
           <button class="btn btn-secondary" onclick="copyLegal()" aria-label="Copy legal summary">
@@ -847,7 +961,7 @@
             </svg>
             Copy
           </button>
-          <button class="btn btn-primary" onclick="downloadLegal()" aria-label="Download legal summary as text file">
+          <button class="btn btn-primary" onclick="downloadLegal()" aria-label="Download legal summary">
             <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path stroke-linecap="round"
                     d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5
@@ -858,6 +972,47 @@
         </div>
       </div>
       <div class="legal-body" id="legal-body"></div>
+    </div>
+  </section>
+
+  <!-- Combined Legal Assessment Output -->
+  <section class="legal-section" id="combined-section" aria-label="Combined legal assessment output" aria-live="polite">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-head-title">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75
+                     a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z"/>
+          </svg>
+          Combined Legal Assessment
+          <span id="combined-section-count" style="font-weight:400;color:var(--g500);margin-left:4px"></span>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary" onclick="copyCombined()" aria-label="Copy combined assessment">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75
+                a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75
+                a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25
+                c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375
+                c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375
+                a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875
+                a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5
+                a3.375 3.375 0 00-3.375-3.375H9.75"/>
+            </svg>
+            Copy
+          </button>
+          <button class="btn btn-primary" onclick="downloadCombined()" aria-label="Download combined assessment">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round"
+                    d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5
+                       M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+            </svg>
+            Download .txt
+          </button>
+        </div>
+      </div>
+      <div class="legal-body" id="combined-body"></div>
     </div>
   </section>
 
@@ -881,9 +1036,9 @@
             <path stroke-linecap="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/>
           </svg>
         </div>
-        <p class="feat-title">Lightning Fast</p>
+        <p class="feat-title">Batch Processing</p>
         <p class="feat-desc">
-          Multi-page PDFs are automatically chunked and sent in parallel. Most documents finish in seconds.
+          Drop multiple files at once. They're processed sequentially with live status updates, then combined for cross-document legal analysis.
         </p>
       </div>
       <div class="feat-card">
@@ -919,18 +1074,23 @@
 
 <script>
   /* ── State ── */
-  let curFilename = '';
-  let progTimer   = null;
+  let curFilename  = '';
+  let progTimer    = null;
+  let batchFiles   = [];    // [{file, text, status:'pending'|'processing'|'done'|'error', error:''}]
+  let isBatchMode  = false;
+  let activeTabIdx = -1;
 
   /* ── DOM ── */
-  const zone     = document.getElementById('upload-zone');
-  const inp      = document.getElementById('file-input');
-  const procCard = document.getElementById('proc-card');
-  const results  = document.getElementById('results');
-  const errBox   = document.getElementById('err-box');
-  const fill     = document.getElementById('prog-fill');
-  const pctEl    = document.getElementById('prog-pct');
-  const textarea = document.getElementById('ocr-out');
+  const zone       = document.getElementById('upload-zone');
+  const inp        = document.getElementById('file-input');
+  const procCard   = document.getElementById('proc-card');
+  const results    = document.getElementById('results');
+  const errBox     = document.getElementById('err-box');
+  const fill       = document.getElementById('prog-fill');
+  const pctEl      = document.getElementById('prog-pct');
+  const textarea   = document.getElementById('ocr-out');
+  const batchQueue = document.getElementById('batch-queue');
+  const tabBar     = document.getElementById('tab-bar');
 
   /* ── Drag & drop ── */
   ['dragenter','dragover'].forEach(e => zone.addEventListener(e, ev => {
@@ -939,39 +1099,58 @@
   ['dragleave','drop'].forEach(e => zone.addEventListener(e, ev => {
     ev.preventDefault(); zone.classList.remove('over');
   }));
-  zone.addEventListener('drop',   ev => { const f = ev.dataTransfer.files[0]; if (f) go(f); });
+  zone.addEventListener('drop', ev => {
+    const files = Array.from(ev.dataTransfer.files || []);
+    if (files.length) handleFileSelection(files);
+  });
   zone.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') inp.click(); });
-  inp.addEventListener('change',  ev => { if (ev.target.files[0]) go(ev.target.files[0]); });
+  inp.addEventListener('change', ev => {
+    const files = Array.from(ev.target.files || []);
+    if (files.length) handleFileSelection(files);
+  });
 
-  /* ── Main handler ── */
-  function go(file) {
-    const ext = file.name.split('.').pop().toLowerCase();
-    const ok  = ['pdf','png','jpg','jpeg','tiff','tif','bmp','gif','webp'];
-    if (!ok.includes(ext)) {
-      showErr(`Unsupported type ".${ext}". Accepted: PDF, PNG, JPG, JPEG, TIFF, BMP, GIF, WebP.`);
+  /* ── File selection entry point ── */
+  function handleFileSelection(files) {
+    const allowed = ['pdf','png','jpg','jpeg','tiff','tif','bmp','gif','webp'];
+    const valid   = files.filter(f => allowed.includes(f.name.split('.').pop().toLowerCase()));
+    if (valid.length === 0) {
+      showErr('Unsupported file type. Accepted: PDF, PNG, JPG, JPEG, TIFF, BMP, GIF, WebP.');
       return;
     }
+    clearErr();
+    if (valid.length === 1) {
+      isBatchMode  = false;
+      activeTabIdx = -1;
+      go(valid[0]);
+    } else {
+      isBatchMode = true;
+      batchFiles  = valid.map(f => ({ file: f, text: '', status: 'pending', error: '' }));
+      showBatchQueue();
+    }
+  }
+
+  /* ── Single-file flow ── */
+  function go(file) {
     clearErr();
     curFilename = file.name;
     startProc(file);
   }
 
   function startProc(file) {
-    zone.style.display   = 'none';
+    zone.style.display = 'none';
     procCard.classList.add('show');
     results.classList.remove('show');
 
     document.getElementById('proc-name').textContent   = file.name;
     document.getElementById('proc-status').textContent = 'Uploading…';
 
-    /* Simulated progress */
     let pct = 0;
     const steps = [
-      { to: 12, msg: 'Uploading…',                   delay: 400 },
-      { to: 32, msg: 'Sending to Claude Vision…',    delay: 900 },
-      { to: 58, msg: 'Analysing document…',          delay: 1800 },
-      { to: 78, msg: 'Extracting text…',             delay: 2600 },
-      { to: 91, msg: 'Finalising output…',           delay: 3400 },
+      { to: 12, msg: 'Uploading…' },
+      { to: 32, msg: 'Sending to Claude Vision…' },
+      { to: 58, msg: 'Analysing document…' },
+      { to: 78, msg: 'Extracting text…' },
+      { to: 91, msg: 'Finalising output…' },
     ];
     let si = 0;
     progTimer = setInterval(() => {
@@ -987,12 +1166,10 @@
       }
     }, 70);
 
-    /* Upload */
     const fd = new FormData();
     fd.append('file', file);
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/ocr');
-
     xhr.onload = () => {
       clearInterval(progTimer);
       if (xhr.status === 200) {
@@ -1016,44 +1193,267 @@
   }
 
   function setProg(n) {
-    fill.style.width    = n + '%';
-    pctEl.textContent   = n + '%';
+    fill.style.width  = n + '%';
+    pctEl.textContent = n + '%';
   }
 
-  /* ── Show results ── */
   function showResults(data, file) {
     const ext     = file.name.split('.').pop().toLowerCase();
     const imgExts = ['png','jpg','jpeg','gif','webp','bmp'];
-    const prevImg = document.getElementById('preview-img');
-    const prevIco = document.getElementById('file-icon');
-
-    document.getElementById('type-badge').textContent = ext.toUpperCase();
-    document.getElementById('file-name').textContent  = file.name;
-    document.getElementById('file-meta').textContent  = fmtSize(file.size);
-
-    if (imgExts.includes(ext)) {
-      prevImg.src          = URL.createObjectURL(file);
-      prevImg.style.display = 'block';
-      prevIco.style.display = 'none';
-      prevIco.className    = 'file-icon img';
-    } else {
-      prevImg.style.display = 'none';
-      prevIco.style.display = 'flex';
-      prevIco.className    = 'file-icon pdf';
-    }
-
+    updateFilePanel(file, ext, imgExts.includes(ext));
     textarea.value = data.text;
     updateCounts();
-
     const words = data.text.trim().split(/\s+/).filter(Boolean).length;
     document.getElementById('result-meta').textContent =
       `${file.name}  ·  ${words.toLocaleString()} words extracted`;
-
+    document.getElementById('results-heading').textContent = 'Extraction Complete';
+    tabBar.classList.remove('show');
     procCard.classList.remove('show');
     zone.style.display = '';
     results.classList.add('show');
     document.getElementById('post-tools').classList.add('show');
+    document.getElementById('combined-tool-card').style.display = 'none';
     results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function updateFilePanel(file, ext, isImg) {
+    const prevImg = document.getElementById('preview-img');
+    const prevIco = document.getElementById('file-icon');
+    document.getElementById('type-badge').textContent = ext.toUpperCase();
+    document.getElementById('file-name').textContent  = file.name;
+    document.getElementById('file-meta').textContent  = fmtSize(file.size);
+    if (isImg) {
+      prevImg.src           = URL.createObjectURL(file);
+      prevImg.style.display = 'block';
+      prevIco.style.display = 'none';
+    } else {
+      prevImg.style.display = 'none';
+      prevIco.style.display = 'flex';
+      prevIco.className     = `file-icon ${ext === 'pdf' ? 'pdf' : 'img'}`;
+    }
+  }
+
+  /* ── Batch Queue ── */
+  function showBatchQueue() {
+    zone.style.display = 'none';
+    batchQueue.classList.add('show');
+    document.getElementById('batch-count').textContent =
+      `${batchFiles.length} files selected`;
+    renderBatchList();
+  }
+
+  function renderBatchList() {
+    const list = document.getElementById('batch-list');
+    list.innerHTML = batchFiles.map((bf, i) => {
+      const ext    = bf.file.name.split('.').pop().toLowerCase();
+      const isPdf  = ext === 'pdf';
+      const stroke = isPdf ? '#dc2626' : '#7c3aed';
+      return `
+        <div class="batch-item" id="batch-item-${i}">
+          <div class="batch-item-icon ${isPdf ? 'pdf' : 'img'}">
+            <svg fill="none" stroke="${stroke}" stroke-width="1.5" viewBox="0 0 24 24" width="20" height="20">
+              <path stroke-linecap="round"
+                    d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5
+                       A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25
+                       m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25
+                       c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125
+                       V11.25a9 9 0 00-9-9z"/>
+            </svg>
+          </div>
+          <div class="batch-item-info">
+            <div class="batch-item-name">${escHtml(bf.file.name)}</div>
+            <div class="batch-item-size">${fmtSize(bf.file.size)}</div>
+          </div>
+          <div id="batch-status-${i}">
+            <span class="status-chip pending">Pending</span>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function updateBatchItemStatus(i) {
+    const bf = batchFiles[i];
+    const el = document.getElementById(`batch-status-${i}`);
+    if (!el) return;
+    const spinnerHtml = `<span style="width:9px;height:9px;border:2px solid var(--blue);border-top-color:transparent;border-radius:50%;display:inline-block;animation:spin .6s linear infinite"></span>`;
+    const map = {
+      pending:    `<span class="status-chip pending">Pending</span>`,
+      processing: `<span class="status-chip processing">${spinnerHtml} Processing</span>`,
+      done:       `<span class="status-chip done">✓ Done</span>`,
+      error:      `<span class="status-chip error" title="${escHtml(bf.error)}">✗ Error</span>`,
+    };
+    el.innerHTML = map[bf.status] || '';
+  }
+
+  function cancelBatch() {
+    batchFiles  = [];
+    isBatchMode = false;
+    batchQueue.classList.remove('show');
+    zone.style.display = '';
+    inp.value = '';
+  }
+
+  async function startBatch() {
+    const btn    = document.getElementById('process-btn');
+    const cancel = document.getElementById('cancel-batch-btn');
+    btn.disabled    = true;
+    cancel.disabled = true;
+    btn.innerHTML   = `<span style="width:12px;height:12px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;display:inline-block;animation:spin .6s linear infinite"></span> Processing…`;
+
+    for (let i = 0; i < batchFiles.length; i++) {
+      batchFiles[i].status = 'processing';
+      updateBatchItemStatus(i);
+      try {
+        batchFiles[i].text   = await ocrFileAsync(batchFiles[i].file);
+        batchFiles[i].status = 'done';
+      } catch (e) {
+        batchFiles[i].error  = e.message || 'Processing failed';
+        batchFiles[i].status = 'error';
+      }
+      updateBatchItemStatus(i);
+    }
+
+    await sleep(500);
+    showBatchResults();
+  }
+
+  function ocrFileAsync(file) {
+    return new Promise((resolve, reject) => {
+      const fd  = new FormData();
+      fd.append('file', file);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/ocr');
+      xhr.onload = () => {
+        if (xhr.status === 200) {
+          const data = JSON.parse(xhr.responseText);
+          data.error ? reject(new Error(data.error)) : resolve(data.text);
+        } else {
+          let msg = 'Server error';
+          try { msg = JSON.parse(xhr.responseText).error || msg; } catch {}
+          reject(new Error(msg));
+        }
+      };
+      xhr.onerror = () => reject(new Error('Network error'));
+      xhr.send(fd);
+    });
+  }
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  function showBatchResults() {
+    batchQueue.classList.remove('show');
+    zone.style.display = '';
+
+    renderTabs();
+    const firstDone = batchFiles.findIndex(f => f.status === 'done');
+    switchTab(firstDone >= 0 ? firstDone : 0);
+
+    const done  = batchFiles.filter(f => f.status === 'done').length;
+    const total = batchFiles.length;
+    document.getElementById('results-heading').textContent =
+      `${done} of ${total} File${total > 1 ? 's' : ''} Processed`;
+
+    tabBar.classList.add('show');
+    results.classList.add('show');
+    document.getElementById('post-tools').classList.add('show');
+    document.getElementById('combined-tool-card').style.display = done >= 2 ? '' : 'none';
+    results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /* ── Tabs ── */
+  function renderTabs() {
+    tabBar.innerHTML = batchFiles.map((bf, i) => {
+      const shortName = bf.file.name.length > 24
+        ? bf.file.name.slice(0, 18) + '…' + bf.file.name.slice(-5)
+        : bf.file.name;
+      const dotClass = bf.status === 'done' ? 'done' : bf.status === 'error' ? 'error' : '';
+      const dotHtml  = dotClass
+        ? `<span class="tab-dot ${dotClass}" aria-hidden="true"></span>`
+        : '';
+      return `<button class="tab" id="tab-${i}" onclick="switchTab(${i})"
+                      title="${escHtml(bf.file.name)}">${dotHtml}${escHtml(shortName)}</button>`;
+    }).join('');
+  }
+
+  function switchTab(i) {
+    if (i < 0 || i >= batchFiles.length) return;
+    activeTabIdx = i;
+    batchFiles.forEach((_, idx) => {
+      const t = document.getElementById(`tab-${idx}`);
+      if (t) t.classList.toggle('active', idx === i);
+    });
+
+    const bf      = batchFiles[i];
+    curFilename   = bf.file.name;
+    const ext     = bf.file.name.split('.').pop().toLowerCase();
+    const imgExts = ['png','jpg','jpeg','gif','webp','bmp'];
+    updateFilePanel(bf.file, ext, imgExts.includes(ext) && bf.status === 'done');
+
+    textarea.value = bf.status === 'done'  ? bf.text
+                   : bf.status === 'error' ? `Error processing this file:\n${bf.error}`
+                   : '';
+    updateCounts();
+
+    const words = bf.text ? bf.text.trim().split(/\s+/).filter(Boolean).length : 0;
+    document.getElementById('result-meta').textContent =
+      `${bf.file.name}  ·  ${words.toLocaleString()} words`;
+
+    resetToolBtn('translate-btn', TRANSLATE_BTN_HTML);
+    resetToolBtn('legal-btn',     LEGAL_BTN_HTML);
+    document.getElementById('legal-section').classList.remove('show');
+    document.getElementById('legal-body').innerHTML = '';
+  }
+
+  /* ── Combined Summary ── */
+  async function combinedSummary() {
+    const doneDocs = batchFiles
+      .filter(f => f.status === 'done' && f.text)
+      .map(f => ({ filename: f.file.name, text: f.text }));
+
+    if (doneDocs.length < 2) {
+      toast('⚠', 'Need at least 2 processed documents');
+      return;
+    }
+
+    const btn = document.getElementById('combined-btn');
+    const sec = document.getElementById('combined-section');
+    const bod = document.getElementById('combined-body');
+
+    setToolLoading(btn, 'Analysing…');
+    document.getElementById('combined-section-count').textContent =
+      `— ${doneDocs.length} documents`;
+    bod.innerHTML = `<div class="legal-loading">
+      <div class="spinner-track" style="width:32px;height:32px;border-width:2px;margin:0 auto 14px;animation:spin .75s linear infinite"></div>
+      <p style="color:var(--g400);font-size:13px">Generating combined legal assessment for ${doneDocs.length} documents…</p>
+    </div>`;
+    sec.classList.add('show');
+    setTimeout(() => sec.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+
+    try {
+      const resp = await fetch('/api/combined-summary', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ documents: doneDocs }),
+      });
+      const data = await resp.json();
+      if (data.error) {
+        showErr(data.error);
+        bod.innerHTML = '';
+        sec.classList.remove('show');
+        resetToolBtn('combined-btn', COMBINED_BTN_HTML);
+        return;
+      }
+      bod.innerHTML = marked.parse(data.summary);
+      toast('⚖️', 'Combined assessment ready');
+      btn.disabled  = false;
+      btn.className = 'btn btn-success';
+      btn.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4.5 12.75l6 6 9-13.5"/></svg> Done`;
+    } catch (e) {
+      showErr('Combined assessment failed: ' + e.message);
+      bod.innerHTML = '';
+      sec.classList.remove('show');
+      resetToolBtn('combined-btn', COMBINED_BTN_HTML);
+    }
   }
 
   /* ── Live counts ── */
@@ -1062,11 +1462,16 @@
     document.getElementById('wc').textContent = (t.trim() ? t.trim().split(/\s+/).length : 0).toLocaleString();
     document.getElementById('cc').textContent = t.length.toLocaleString();
   }
-  textarea.addEventListener('input', updateCounts);
+  textarea.addEventListener('input', () => {
+    updateCounts();
+    if (isBatchMode && activeTabIdx >= 0) {
+      batchFiles[activeTabIdx].text = textarea.value;
+    }
+  });
 
-  /* ── Copy ── */
+  /* ── Copy / Download OCR text ── */
   function copyText() {
-    const t = textarea.value;
+    const t   = textarea.value;
     const btn = document.getElementById('copy-btn');
     navigator.clipboard.writeText(t).then(() => {
       toast('✓', 'Copied to clipboard!');
@@ -1076,22 +1481,13 @@
         btn.classList.remove('btn-success');
         btn.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75"/></svg> Copy Text`;
       }, 2200);
-    }).catch(() => {
-      textarea.select(); document.execCommand('copy');
-      toast('✓', 'Copied!');
-    });
+    }).catch(() => { textarea.select(); document.execCommand('copy'); toast('✓', 'Copied!'); });
   }
 
-  /* ── Download ── */
   function download() {
-    const text = textarea.value;
-    const stem = curFilename.replace(/\.[^.]+$/, '');
+    const stem  = curFilename.replace(/\.[^.]+$/, '');
     const fname = stem + '_ocr.txt';
-    const blob  = new Blob([text], { type: 'text/plain;charset=utf-8' });
-    const url   = URL.createObjectURL(blob);
-    const a     = Object.assign(document.createElement('a'), { href: url, download: fname });
-    a.click();
-    URL.revokeObjectURL(url);
+    dlBlob(textarea.value, fname);
     toast('⬇', `Saved as ${fname}`);
   }
 
@@ -1100,14 +1496,24 @@
     clearInterval(progTimer);
     procCard.classList.remove('show');
     results.classList.remove('show');
+    tabBar.classList.remove('show');
+    tabBar.innerHTML = '';
+    batchQueue.classList.remove('show');
     document.getElementById('post-tools').classList.remove('show');
     document.getElementById('legal-section').classList.remove('show');
-    document.getElementById('legal-body').innerHTML = '';
+    document.getElementById('combined-section').classList.remove('show');
+    document.getElementById('legal-body').innerHTML    = '';
+    document.getElementById('combined-body').innerHTML = '';
+    document.getElementById('combined-tool-card').style.display = 'none';
     resetToolBtn('translate-btn', TRANSLATE_BTN_HTML);
     resetToolBtn('legal-btn',     LEGAL_BTN_HTML);
+    resetToolBtn('combined-btn',  COMBINED_BTN_HTML);
     zone.style.display = '';
-    inp.value = '';
-    curFilename = '';
+    inp.value      = '';
+    curFilename    = '';
+    batchFiles     = [];
+    isBatchMode    = false;
+    activeTabIdx   = -1;
     setProg(0);
     clearErr();
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1140,22 +1546,34 @@
 
   /* ── Utils ── */
   function fmtSize(b) {
-    if (b < 1024)        return b + ' B';
-    if (b < 1048576)     return (b / 1024).toFixed(1) + ' KB';
+    if (b < 1024)    return b + ' B';
+    if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
     return (b / 1048576).toFixed(2) + ' MB';
+  }
+  function escHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function dlBlob(text, fname) {
+    const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+    Object.assign(document.createElement('a'), { href: url, download: fname }).click();
+    URL.revokeObjectURL(url);
   }
 
   /* ── Tool button helpers ── */
   const TRANSLATE_BTN_HTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg> Translate`;
   const LEGAL_BTN_HTML     = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z"/></svg> Analyse`;
+  const COMBINED_BTN_HTML  = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z"/></svg> Assess All`;
 
   function setToolLoading(btn, msg) {
-    btn.disabled = true;
+    btn.disabled  = true;
     btn.innerHTML = `<div class="spinner-track" style="width:13px;height:13px;border-width:2px;flex-shrink:0;animation:spin .75s linear infinite"></div> ${msg}`;
   }
   function resetToolBtn(id, html) {
     const btn = document.getElementById(id);
-    btn.disabled = false;
+    if (!btn) return;
+    btn.disabled  = false;
     btn.className = 'btn btn-secondary';
     btn.innerHTML = html;
   }
@@ -1168,66 +1586,87 @@
     setToolLoading(btn, 'Translating…');
 
     fetch('/api/translate', {
-      method: 'POST',
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
+      body:    JSON.stringify({ text }),
     })
     .then(r => r.json())
     .then(data => {
       if (data.error) { showErr(data.error); resetToolBtn('translate-btn', TRANSLATE_BTN_HTML); return; }
       textarea.value = data.text;
+      if (isBatchMode && activeTabIdx >= 0) batchFiles[activeTabIdx].text = data.text;
       updateCounts();
       toast('🌐', 'Translated to English');
-      btn.disabled = false;
+      btn.disabled  = false;
       btn.className = 'btn btn-success';
       btn.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4.5 12.75l6 6 9-13.5"/></svg> Translated`;
     })
     .catch(() => { showErr('Translation failed — check server logs'); resetToolBtn('translate-btn', TRANSLATE_BTN_HTML); });
   }
 
-  /* ── Legal Summary ── */
+  /* ── Legal Summary (per-file) ── */
   function legalSummary() {
     const text = textarea.value.trim();
     if (!text) { toast('⚠', 'No text to analyse'); return; }
     const btn      = document.getElementById('legal-btn');
     const legalSec = document.getElementById('legal-section');
     const legalBod = document.getElementById('legal-body');
+    const fname    = curFilename;
 
+    document.getElementById('legal-section-filename').textContent = fname;
     setToolLoading(btn, 'Analysing…');
     legalBod.innerHTML = `<div class="legal-loading"><div class="spinner-track" style="width:32px;height:32px;border-width:2px;margin:0 auto 14px;animation:spin .75s linear infinite"></div><p style="color:var(--g400);font-size:13px">Generating legal analysis…</p></div>`;
     legalSec.classList.add('show');
     setTimeout(() => legalSec.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
 
     fetch('/api/legal-summary', {
-      method: 'POST',
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
+      body:    JSON.stringify({ text }),
     })
     .then(r => r.json())
     .then(data => {
-      if (data.error) { showErr(data.error); legalBod.innerHTML = ''; legalSec.classList.remove('show'); resetToolBtn('legal-btn', LEGAL_BTN_HTML); return; }
+      if (data.error) {
+        showErr(data.error);
+        legalBod.innerHTML = '';
+        legalSec.classList.remove('show');
+        resetToolBtn('legal-btn', LEGAL_BTN_HTML);
+        return;
+      }
       legalBod.innerHTML = marked.parse(data.summary);
       toast('⚖️', 'Legal summary ready');
-      btn.disabled = false;
+      btn.disabled  = false;
       btn.className = 'btn btn-success';
       btn.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4.5 12.75l6 6 9-13.5"/></svg> Done`;
     })
-    .catch(() => { showErr('Legal summary failed'); legalBod.innerHTML = ''; legalSec.classList.remove('show'); resetToolBtn('legal-btn', LEGAL_BTN_HTML); });
+    .catch(() => {
+      showErr('Legal summary failed');
+      legalBod.innerHTML = '';
+      legalSec.classList.remove('show');
+      resetToolBtn('legal-btn', LEGAL_BTN_HTML);
+    });
   }
 
-  /* ── Copy / download legal summary ── */
+  /* ── Copy / Download legal summary ── */
   function copyLegal() {
-    const text = document.getElementById('legal-body').innerText;
-    navigator.clipboard.writeText(text).then(() => toast('✓', 'Summary copied!'));
+    navigator.clipboard.writeText(document.getElementById('legal-body').innerText)
+      .then(() => toast('✓', 'Summary copied!'));
   }
   function downloadLegal() {
-    const text  = document.getElementById('legal-body').innerText;
     const stem  = curFilename.replace(/\.[^.]+$/, '');
     const fname = stem + '_legal_summary.txt';
-    const url   = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
-    Object.assign(document.createElement('a'), { href: url, download: fname }).click();
-    URL.revokeObjectURL(url);
+    dlBlob(document.getElementById('legal-body').innerText, fname);
     toast('⬇', `Saved as ${fname}`);
+  }
+
+  /* ── Copy / Download combined assessment ── */
+  function copyCombined() {
+    navigator.clipboard.writeText(document.getElementById('combined-body').innerText)
+      .then(() => toast('✓', 'Combined assessment copied!'));
+  }
+  function downloadCombined() {
+    dlBlob(document.getElementById('combined-body').innerText, 'combined_legal_assessment.txt');
+    toast('⬇', 'Saved as combined_legal_assessment.txt');
   }
 </script>
 </body>

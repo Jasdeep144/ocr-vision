@@ -619,6 +619,85 @@
       border-color: var(--blue); color: var(--blue); background: var(--blue-light);
     }
     .reocr-btn:disabled { opacity: .6; cursor: not-allowed; }
+
+    /* ── Embedded legal data viewer ── */
+    #excel-data-section {
+      display: none;
+      max-width: 1100px; margin: 0 auto;
+      padding: 0 24px 40px;
+    }
+    #excel-data-section.show { display: block; animation: slide-up .4s ease both; }
+    .ld-tab-bar {
+      display: flex;
+      border-bottom: 1px solid var(--g200);
+      overflow-x: auto;
+      padding: 0 20px;
+      background: var(--g50);
+      gap: 0;
+      scrollbar-width: none;
+    }
+    .ld-tab-bar::-webkit-scrollbar { display: none; }
+    .ld-tab {
+      padding: 11px 16px;
+      font-size: 12.5px; font-weight: 500;
+      color: var(--g500);
+      background: none; border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer; white-space: nowrap;
+      font-family: inherit;
+      transition: color .15s, border-color .15s;
+    }
+    .ld-tab:hover { color: var(--g800); }
+    .ld-tab.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
+    .ld-panels { overflow-x: auto; }
+    .ld-panel { display: none; }
+    .ld-panel.active { display: block; }
+    .ld-kv { width: 100%; border-collapse: collapse; }
+    .ld-kv th {
+      width: 190px; padding: 10px 18px;
+      text-align: left; font-size: 13px; font-weight: 600;
+      color: var(--g700); background: var(--g50);
+      border-bottom: 1px solid var(--g100);
+      vertical-align: top; white-space: nowrap;
+    }
+    .ld-kv td {
+      padding: 10px 18px; font-size: 13px; color: var(--g800);
+      border-bottom: 1px solid var(--g100); vertical-align: top; line-height: 1.6;
+    }
+    .ld-kv tr:last-child th, .ld-kv tr:last-child td { border-bottom: none; }
+    .ld-kv .ld-assessment-row th {
+      background: #1E3A5F; color: #fff; font-size: 12px; text-transform: uppercase;
+      letter-spacing: .05em; padding: 7px 18px;
+    }
+    .ld-kv .ld-assessment-row td { display: none; }
+    .ld-kv .ld-assessment-val td {
+      font-style: italic; color: var(--g700); background: #f8fafc;
+    }
+    .ld-tbl { width: 100%; border-collapse: collapse; min-width: 500px; }
+    .ld-tbl thead th {
+      padding: 10px 14px; text-align: left; font-size: 12px; font-weight: 600;
+      color: #fff; background: #1E3A5F; white-space: nowrap;
+    }
+    .ld-tbl tbody tr:nth-child(odd)  td { background: #fff; }
+    .ld-tbl tbody tr:nth-child(even) td { background: var(--g50); }
+    .ld-tbl td {
+      padding: 9px 14px; font-size: 13px; color: var(--g800);
+      border-bottom: 1px solid var(--g100); vertical-align: top; line-height: 1.55;
+    }
+    .ld-rf-high   td { background: #FEE2E2 !important; }
+    .ld-rf-medium td { background: #FEF3C7 !important; }
+    .ld-rf-low    td { background: #DCFCE7 !important; }
+    .ld-sev {
+      display: inline-block; padding: 2px 9px; border-radius: 9999px;
+      font-size: 11px; font-weight: 700;
+    }
+    .ld-sev-high   { background: #FEE2E2; color: #991B1B; }
+    .ld-sev-medium { background: #FEF3C7; color: #92400E; }
+    .ld-sev-low    { background: #DCFCE7; color: #166534; }
+    .ld-empty {
+      padding: 28px; text-align: center; color: var(--g400);
+      font-size: 13px; font-style: italic;
+    }
   </style>
 </head>
 <body>
@@ -950,17 +1029,26 @@
           </div>
           <div>
             <div class="tool-title">Excel Summary</div>
-            <div class="tool-desc">Structured legal export — 8 sheets: parties, obligations, key dates, financials, rights &amp; red flags</div>
+            <div class="tool-desc">View structured data on-page — 8 tabs: parties, obligations, key dates, financials, rights &amp; red flags. Download as .xlsx.</div>
           </div>
         </div>
         <button class="btn btn-secondary" id="excel-btn" onclick="excelSummary()"
-                aria-label="Generate and download Excel legal summary">
+                aria-label="View embedded Excel summary and download">
           <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round"
-                  d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5
-                     M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125
+                     M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125
+                     m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125
+                     m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125h-7.5
+                     c-.621 0-1.125-.504-1.125-1.125m9.75-12.75
+                     c0-.621-.504-1.125-1.125-1.125H4.5
+                     A1.125 1.125 0 003.375 5.625m16.5 0v1.5
+                     c0 .621-.504 1.125-1.125 1.125h-1.5
+                     a1.125 1.125 0 00-1.125 1.125v1.5
+                     c0 .621.504 1.125 1.125 1.125h1.5
+                     c.621 0 1.125.504 1.125 1.125v1.5"/>
           </svg>
-          Download .xlsx
+          Excel Summary
         </button>
       </div>
 
@@ -1080,6 +1168,47 @@
     </div>
   </section>
 
+  <!-- Embedded Legal Data Viewer -->
+  <section id="excel-data-section" aria-label="Legal data viewer" aria-live="polite">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-head-title">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125
+                     M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625
+                     m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625
+                     m0 12.75c0 .621-.504 1.125-1.125 1.125h-7.5
+                     c-.621 0-1.125-.504-1.125-1.125m9.75-12.75
+                     c0-.621-.504-1.125-1.125-1.125H4.5
+                     A1.125 1.125 0 003.375 5.625m16.5 0v1.5
+                     c0 .621-.504 1.125-1.125 1.125h-1.5
+                     a1.125 1.125 0 00-1.125 1.125v1.5
+                     c0 .621.504 1.125 1.125 1.125h1.5
+                     c.621 0 1.125.504 1.125 1.125v1.5"/>
+          </svg>
+          Legal Data — <span id="excel-data-filename" style="font-weight:400;color:var(--g500)"></span>
+        </div>
+        <button class="btn btn-primary" id="excel-dl-btn" onclick="downloadExcel()"
+                aria-label="Download Excel file">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round"
+                  d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5
+                     M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+          </svg>
+          Download .xlsx
+        </button>
+      </div>
+      <div class="ld-tab-bar" id="ld-tab-bar"></div>
+      <div class="ld-panels" id="ld-panels">
+        <div class="legal-loading">
+          <div class="spinner-track" style="width:32px;height:32px;border-width:2px;margin:0 auto 14px;animation:spin .75s linear infinite"></div>
+          <p style="color:var(--g400);font-size:13px">Extracting structured data…</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Features -->
   <section class="features" id="features" aria-labelledby="features-heading">
     <div class="features-grid">
@@ -1134,12 +1263,15 @@
 
 <script>
   /* ── State ── */
-  let curFilename  = '';
-  let curFile      = null;
-  let progTimer    = null;
-  let batchFiles   = [];    // [{file, text, status, error, method}]
-  let isBatchMode  = false;
-  let activeTabIdx = -1;
+  let curFilename       = '';
+  let curFile           = null;
+  let progTimer         = null;
+  let batchFiles        = [];    // [{file, text, status, error, method}]
+  let isBatchMode       = false;
+  let activeTabIdx      = -1;
+  let cachedLegalData   = null;
+  let cachedLegalFilename = '';
+  let activeLdTab       = 0;
 
   /* ── DOM ── */
   const zone       = document.getElementById('upload-zone');
@@ -1597,8 +1729,11 @@
     document.getElementById('post-tools').classList.remove('show');
     document.getElementById('legal-section').classList.remove('show');
     document.getElementById('combined-section').classList.remove('show');
+    document.getElementById('excel-data-section').classList.remove('show');
     document.getElementById('legal-body').innerHTML    = '';
     document.getElementById('combined-body').innerHTML = '';
+    document.getElementById('ld-tab-bar').innerHTML    = '';
+    document.getElementById('ld-panels').innerHTML     = '';
     document.getElementById('combined-tool-card').style.display = 'none';
     resetToolBtn('translate-btn', TRANSLATE_BTN_HTML);
     resetToolBtn('legal-btn',     LEGAL_BTN_HTML);
@@ -1606,12 +1741,14 @@
     resetToolBtn('combined-btn',  COMBINED_BTN_HTML);
     setMethodBadge('');
     zone.style.display = '';
-    inp.value      = '';
-    curFilename    = '';
-    curFile        = null;
-    batchFiles     = [];
-    isBatchMode    = false;
-    activeTabIdx   = -1;
+    inp.value         = '';
+    curFilename       = '';
+    curFile           = null;
+    batchFiles        = [];
+    isBatchMode       = false;
+    activeTabIdx      = -1;
+    cachedLegalData   = null;
+    cachedLegalFilename = '';
     setProg(0);
     clearErr();
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1661,7 +1798,7 @@
   }
 
   /* ── Tool button helpers ── */
-  const EXCEL_BTN_HTML     = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg> Download .xlsx`;
+  const EXCEL_BTN_HTML     = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125h-7.5c-.621 0-1.125-.504-1.125-1.125m9.75-12.75c0-.621-.504-1.125-1.125-1.125H4.5A1.125 1.125 0 003.375 5.625m16.5 0v1.5c0 .621-.504 1.125-1.125 1.125h-1.5a1.125 1.125 0 00-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125h1.5c.621 0 1.125.504 1.125 1.125v1.5"/></svg> Excel Summary`;
   const TRANSLATE_BTN_HTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg> Translate`;
   const LEGAL_BTN_HTML     = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z"/></svg> Analyse`;
   const COMBINED_BTN_HTML  = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z"/></svg> Assess All`;
@@ -1678,40 +1815,164 @@
     btn.innerHTML = html;
   }
 
-  /* ── Excel Summary ── */
+  /* ── Legal Data: embedded viewer + Excel download ── */
+
+  const LD_TABS = [
+    'Overview', 'Parties', 'Obligations', 'Key Dates',
+    'Financial', 'Rights & Liabilities', 'Termination', 'Red Flags',
+  ];
+
+  function showLdTab(idx) {
+    activeLdTab = idx;
+    document.querySelectorAll('.ld-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
+    document.querySelectorAll('.ld-panel').forEach((p, i) => p.classList.toggle('active', i === idx));
+  }
+
+  function ldSafe(v) {
+    const s = String(v == null ? '' : v).trim();
+    return (s && s.toLowerCase() !== 'null' && s.toLowerCase() !== 'undefined') ? s : 'N/A';
+  }
+
+  function ldTable(headers, rows, rowCls) {
+    if (!rows || rows.length === 0)
+      return `<p class="ld-empty">No entries recorded</p>`;
+    const ths = headers.map(h => `<th>${escHtml(h)}</th>`).join('');
+    const trs = rows.map(r => {
+      const cls = rowCls ? ` class="${escHtml(rowCls(r))}"` : '';
+      const tds = r.map((v, ci) => {
+        // Severity column in Red Flags — render as pill
+        if (rowCls && ci === 0) {
+          const sev = ldSafe(v).toLowerCase();
+          return `<td><span class="ld-sev ld-sev-${sev}">${escHtml(ldSafe(v))}</span></td>`;
+        }
+        return `<td>${escHtml(ldSafe(v))}</td>`;
+      }).join('');
+      return `<tr${cls}>${tds}</tr>`;
+    }).join('');
+    return `<table class="ld-tbl"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
+  }
+
+  function renderLegalData(d) {
+    const gl = d.governing_law || {};
+
+    const kvRows = [
+      ['Document Type',      d.document_type],
+      ['Purpose',            d.purpose],
+      ['Effective Date',     d.effective_date],
+      ['Expiry Date',        d.expiry_date],
+      ['Jurisdiction',       gl.jurisdiction],
+      ['Applicable Law',     gl.applicable_law],
+      ['Dispute Resolution', gl.dispute_resolution],
+    ];
+    const kvHtml = kvRows.map(([k, v]) =>
+      `<tr><th>${escHtml(k)}</th><td>${escHtml(ldSafe(v))}</td></tr>`
+    ).join('');
+    const assessHtml =
+      `<tr class="ld-assessment-row"><th colspan="2" style="background:#1E3A5F;color:#fff;font-size:12px;text-transform:uppercase;letter-spacing:.05em;padding:7px 18px">Overall Assessment</th></tr>` +
+      `<tr><td colspan="2" style="font-style:italic;color:var(--g700);background:#f8fafc;padding:12px 18px;line-height:1.6">${escHtml(ldSafe(d.overall_assessment))}</td></tr>`;
+
+    const panelHtmls = [
+      `<table class="ld-kv">${kvHtml}${assessHtml}</table>`,
+      ldTable(['Name', 'Role', 'Jurisdiction'],
+        (d.parties || []).map(p => [p.name, p.role, p.jurisdiction])),
+      ldTable(['Party', 'Obligation', 'Deadline'],
+        (d.key_obligations || []).map(o => [o.party, o.obligation, o.deadline])),
+      ldTable(['Date', 'Event', 'Party'],
+        (d.key_dates || []).map(x => [x.date, x.event, x.party])),
+      ldTable(['Item', 'Amount', 'Party', 'Due Date'],
+        (d.financial_terms || []).map(f => [f.item, f.amount, f.party, f.due_date])),
+      ldTable(['Party', 'Type', 'Description', 'Cap / Limit'],
+        (d.rights_liabilities || []).map(r => [r.party, r.type, r.description, r.cap])),
+      ldTable(['Trigger', 'Notice Period', 'Consequence'],
+        (d.termination_provisions || []).map(t => [t.trigger, t.notice_period, t.consequence])),
+      ldTable(['Severity', 'Clause / Topic', 'Issue', 'Recommendation'],
+        (d.red_flags || []).map(r => [r.severity, r.clause, r.issue, r.recommendation]),
+        r => `ld-rf-${(r[0] || '').toLowerCase()}`),
+    ];
+
+    document.getElementById('ld-tab-bar').innerHTML =
+      LD_TABS.map((lbl, i) =>
+        `<button class="ld-tab${i === 0 ? ' active' : ''}" onclick="showLdTab(${i})">${lbl}</button>`
+      ).join('');
+
+    document.getElementById('ld-panels').innerHTML =
+      panelHtmls.map((html, i) =>
+        `<div class="ld-panel${i === 0 ? ' active' : ''}">${html}</div>`
+      ).join('');
+
+    activeLdTab = 0;
+  }
+
   async function excelSummary() {
     const text = textarea.value.trim();
     if (!text) { toast('⚠', 'No text to analyse'); return; }
-    const btn = document.getElementById('excel-btn');
+    const btn   = document.getElementById('excel-btn');
+    const sec   = document.getElementById('excel-data-section');
+    const fname = curFilename;
+
     setToolLoading(btn, text.length > 50000 ? 'Generating (large doc)…' : 'Generating…');
+    document.getElementById('excel-data-filename').textContent = fname;
+    document.getElementById('ld-tab-bar').innerHTML = '';
+    document.getElementById('ld-panels').innerHTML  =
+      `<div class="legal-loading">` +
+      `<div class="spinner-track" style="width:32px;height:32px;border-width:2px;margin:0 auto 14px;animation:spin .75s linear infinite"></div>` +
+      `<p style="color:var(--g400);font-size:13px">Extracting structured legal data${text.length > 50000 ? ' — large document, please wait…' : '…'}</p>` +
+      `</div>`;
+    sec.classList.add('show');
+    setTimeout(() => sec.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
 
     try {
-      const resp = await fetch('/api/excel-summary', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ text, filename: curFilename || 'document' }),
+      const resp   = await fetch('/api/legal-data', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, filename: fname || 'document' }),
       });
-
-      const contentType = resp.headers.get('content-type') || '';
-      if (!resp.ok || contentType.includes('application/json')) {
-        const err = await resp.json();
-        showErr(err.error || 'Excel generation failed');
+      const result = await resp.json();
+      if (result.error) {
+        showErr(result.error);
+        sec.classList.remove('show');
         resetToolBtn('excel-btn', EXCEL_BTN_HTML);
         return;
       }
-
-      const blob  = await resp.blob();
-      const stem  = (curFilename || 'document').replace(/\.[^.]+$/, '');
-      const fname = stem + '_legal_summary.xlsx';
-      dlBlob(blob, fname, blob.type);
-      toast('📊', `Excel saved as ${fname}`);
+      cachedLegalData     = result.data;
+      cachedLegalFilename = result.filename || fname || 'document';
+      renderLegalData(result.data);
+      toast('📊', 'Legal data ready');
       btn.disabled  = false;
       btn.className = 'btn btn-success';
-      btn.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4.5 12.75l6 6 9-13.5"/></svg> Downloaded`;
+      btn.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4.5 12.75l6 6 9-13.5"/></svg> Done`;
     } catch (e) {
       showErr('Excel generation failed: ' + e.message);
+      sec.classList.remove('show');
       resetToolBtn('excel-btn', EXCEL_BTN_HTML);
     }
+  }
+
+  async function downloadExcel() {
+    if (!cachedLegalData) { toast('⚠', 'Generate the Excel summary first'); return; }
+    const btn  = document.getElementById('excel-dl-btn');
+    const orig = btn.innerHTML;
+    btn.disabled  = true;
+    btn.innerHTML =
+      `<div class="spinner-track" style="width:13px;height:13px;border-width:2px;flex-shrink:0;animation:spin .75s linear infinite"></div> Preparing…`;
+    try {
+      const resp = await fetch('/api/excel-from-json', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: cachedLegalData, filename: cachedLegalFilename }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json();
+        showErr(err.error || 'Download failed');
+      } else {
+        const blob = await resp.blob();
+        const stem = (cachedLegalFilename || 'document').replace(/\.[^.]+$/, '');
+        dlBlob(blob, stem + '_legal_summary.xlsx', blob.type);
+        toast('⬇', 'Excel downloaded');
+      }
+    } catch (e) {
+      showErr('Download failed: ' + e.message);
+    }
+    btn.disabled  = false;
+    btn.innerHTML = orig;
   }
 
   /* ── Re-process with AI OCR ── */

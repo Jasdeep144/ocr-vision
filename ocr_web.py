@@ -548,6 +548,66 @@ def excel_summary_endpoint():
         return jsonify({"error": str(exc)}), 500
 
 
+@app.route("/api/legal-data", methods=["POST"])
+def legal_data_endpoint():
+    """Return the structured legal JSON (same schema as excel-summary) without building the xlsx."""
+    data     = request.get_json()
+    text     = (data or {}).get("text", "").strip()
+    filename = (data or {}).get("filename", "document")
+    if not text:
+        return jsonify({"error": "No text provided"}), 400
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        return jsonify({"error": "ANTHROPIC_API_KEY is not set"}), 400
+
+    model  = (data or {}).get("model", "claude-sonnet-4-6")
+    client = make_client(api_key)
+
+    try:
+        condensed = prepare_text_for_summary(text, client, model)
+        response = client.messages.create(
+            model=model,
+            max_tokens=4096,
+            messages=[{"role": "user", "content": EXCEL_SUMMARY_PROMPT + "\n\n---\n\n" + condensed}],
+        )
+        raw = response.content[0].text.strip()
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[1]
+            if raw.endswith("```"):
+                raw = raw[:-3]
+            raw = raw.strip()
+        summary_data = json.loads(raw)
+        return jsonify({"data": summary_data, "filename": filename})
+    except json.JSONDecodeError as e:
+        return jsonify({"error": f"Failed to parse structured response: {e}"}), 500
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/excel-from-json", methods=["POST"])
+def excel_from_json_endpoint():
+    """Build and return an xlsx from already-structured JSON — no Claude call needed."""
+    body         = request.get_json()
+    summary_data = (body or {}).get("data")
+    filename     = (body or {}).get("filename", "document")
+    if not summary_data:
+        return jsonify({"error": "No data provided"}), 400
+
+    try:
+        excel_bytes = build_excel_summary(summary_data, filename)
+        stem    = Path(filename).stem
+        dl_name = f"{stem}_legal_summary.xlsx"
+        return send_file(
+            io.BytesIO(excel_bytes),
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name=dl_name,
+        )
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print("━" * 48)

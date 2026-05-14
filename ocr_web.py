@@ -23,6 +23,23 @@ app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB
 ALLOWED = {".pdf", ".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp", ".gif", ".webp"}
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp", ".gif", ".webp"}
 
+CHUNK_SIZE           = 60_000   # ~15 k tokens — safe single-call limit for summaries
+TRANSLATE_CHUNK_SIZE = 25_000   # ~6 k tokens — tighter limit keeps translation quality high
+
+CHUNK_EXTRACT_PROMPT = (
+    "Extract all legally significant content from this document section. Include:\n"
+    "• All parties (names, roles, relationships)\n"
+    "• All obligations, duties, and commitments\n"
+    "• All dates, deadlines, notice periods, and timeframes\n"
+    "• All financial terms, payments, fees, and penalties\n"
+    "• All rights granted and caps on liability\n"
+    "• Termination events and their consequences\n"
+    "• Governing law, jurisdiction, and dispute resolution mechanism\n"
+    "• Any unusual, onerous, or ambiguous clauses\n\n"
+    "Format as structured bullet points. Preserve exact amounts, dates, and names. "
+    "Output only the extracted facts — no commentary, no introduction."
+)
+
 TRANSLATE_PROMPT = (
     "You are a professional translator. "
     "Translate the following text to English, preserving the original structure, "
@@ -30,6 +47,52 @@ TRANSLATE_PROMPT = (
     "If the text is already entirely in English, return it completely unchanged. "
     "Output only the translated text — no notes, explanations, or commentary."
 )
+
+
+def chunk_text(text: str, max_chars: int = CHUNK_SIZE) -> list[str]:
+    """Split text into chunks at paragraph boundaries, staying under max_chars."""
+    if len(text) <= max_chars:
+        return [text]
+    chunks: list[str] = []
+    remaining = text
+    while len(remaining) > max_chars:
+        pos = remaining.rfind("\n\n", 0, max_chars)
+        if pos == -1:
+            pos = remaining.rfind("\n", 0, max_chars)
+        if pos == -1:
+            pos = max_chars
+        chunks.append(remaining[:pos].strip())
+        remaining = remaining[pos:].strip()
+    if remaining:
+        chunks.append(remaining)
+    return chunks
+
+
+def prepare_text_for_summary(text: str, client, model: str) -> str:
+    """Map-reduce: extract legal facts from each chunk, return condensed extracts.
+
+    If the text fits in a single chunk it is returned unchanged so callers need
+    no special-case logic for short documents.
+    """
+    chunks = chunk_text(text, CHUNK_SIZE)
+    if len(chunks) == 1:
+        return text
+    n = len(chunks)
+    extracts: list[str] = []
+    for i, chunk in enumerate(chunks, 1):
+        prompt = (
+            f"This is section {i} of {n} from a legal document.\n\n"
+            + CHUNK_EXTRACT_PROMPT
+            + "\n\n---\n\n"
+            + chunk
+        )
+        resp = client.messages.create(
+            model=model,
+            max_tokens=2048,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        extracts.append(f"=== Document Section {i}/{n} ===\n{resp.content[0].text}")
+    return "\n\n".join(extracts)
 
 COMBINED_SUMMARY_PROMPT = (
     "You are a senior legal professional reviewing a set of {n} related documents. "
@@ -363,12 +426,16 @@ def translate_endpoint():
     client = make_client(api_key)
 
     try:
-        response = client.messages.create(
-            model=model,
-            max_tokens=8096,
-            messages=[{"role": "user", "content": TRANSLATE_PROMPT + "\n\n---\n\n" + text}],
-        )
-        return jsonify({"text": response.content[0].text})
+        chunks = chunk_text(text, TRANSLATE_CHUNK_SIZE)
+        parts: list[str] = []
+        for chunk in chunks:
+            resp = client.messages.create(
+                model=model,
+                max_tokens=8096,
+                messages=[{"role": "user", "content": TRANSLATE_PROMPT + "\n\n---\n\n" + chunk}],
+            )
+            parts.append(resp.content[0].text)
+        return jsonify({"text": "\n\n".join(parts)})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 
@@ -388,10 +455,11 @@ def legal_summary_endpoint():
     client = make_client(api_key)
 
     try:
+        condensed = prepare_text_for_summary(text, client, model)
         response = client.messages.create(
             model=model,
             max_tokens=4096,
-            messages=[{"role": "user", "content": LEGAL_SUMMARY_PROMPT + "\n\n---\n\n" + text}],
+            messages=[{"role": "user", "content": LEGAL_SUMMARY_PROMPT + "\n\n---\n\n" + condensed}],
         )
         return jsonify({"summary": response.content[0].text})
     except Exception as exc:
@@ -412,13 +480,16 @@ def combined_summary_endpoint():
     model = (data or {}).get("model", "claude-sonnet-4-6")
     client = make_client(api_key)
 
-    combined = "\n\n".join(
-        f"--- Document {i}: {doc['filename']} ---\n\n{doc['text']}"
-        for i, doc in enumerate(docs, 1)
-    )
-    prompt = COMBINED_SUMMARY_PROMPT.format(n=len(docs)) + "\n\n" + combined
-
     try:
+        condensed_parts: list[str] = []
+        for i, doc in enumerate(docs, 1):
+            doc_text = doc.get("text", "").strip()
+            condensed = prepare_text_for_summary(doc_text, client, model)
+            condensed_parts.append(f"--- Document {i}: {doc['filename']} ---\n\n{condensed}")
+
+        combined = "\n\n".join(condensed_parts)
+        prompt = COMBINED_SUMMARY_PROMPT.format(n=len(docs)) + "\n\n" + combined
+
         response = client.messages.create(
             model=model,
             max_tokens=8096,
@@ -445,10 +516,11 @@ def excel_summary_endpoint():
     client = make_client(api_key)
 
     try:
+        condensed = prepare_text_for_summary(text, client, model)
         response = client.messages.create(
             model=model,
             max_tokens=4096,
-            messages=[{"role": "user", "content": EXCEL_SUMMARY_PROMPT + "\n\n---\n\n" + text}],
+            messages=[{"role": "user", "content": EXCEL_SUMMARY_PROMPT + "\n\n---\n\n" + condensed}],
         )
         raw = response.content[0].text.strip()
 

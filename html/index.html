@@ -1486,12 +1486,15 @@
     const sec = document.getElementById('combined-section');
     const bod = document.getElementById('combined-body');
 
-    setToolLoading(btn, 'Analysing…');
+    const totalChars = doneDocs.reduce((s, d) => s + d.text.length, 0);
+    const combinedLabel = totalChars > 50000 ? 'Analysing (large docs)…' : 'Analysing…';
+    setToolLoading(btn, combinedLabel);
     document.getElementById('combined-section-count').textContent =
       `— ${doneDocs.length} documents`;
+    const combinedNote = totalChars > 50000 ? ' Large documents will be condensed before analysis.' : '';
     bod.innerHTML = `<div class="legal-loading">
       <div class="spinner-track" style="width:32px;height:32px;border-width:2px;margin:0 auto 14px;animation:spin .75s linear infinite"></div>
-      <p style="color:var(--g400);font-size:13px">Generating combined legal assessment for ${doneDocs.length} documents…</p>
+      <p style="color:var(--g400);font-size:13px">Generating combined legal assessment for ${doneDocs.length} documents…${combinedNote}</p>
     </div>`;
     sec.classList.add('show');
     setTimeout(() => sec.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
@@ -1680,7 +1683,7 @@
     const text = textarea.value.trim();
     if (!text) { toast('⚠', 'No text to analyse'); return; }
     const btn = document.getElementById('excel-btn');
-    setToolLoading(btn, 'Generating…');
+    setToolLoading(btn, text.length > 50000 ? 'Generating (large doc)…' : 'Generating…');
 
     try {
       const resp = await fetch('/api/excel-summary', {
@@ -1759,7 +1762,8 @@
     const text = textarea.value.trim();
     if (!text) { toast('⚠', 'No text to translate'); return; }
     const btn = document.getElementById('translate-btn');
-    setToolLoading(btn, 'Translating…');
+    const translateLabel = text.length > 50000 ? 'Translating (large doc)…' : 'Translating…';
+    setToolLoading(btn, translateLabel);
 
     fetch('/api/translate', {
       method:  'POST',
@@ -1790,8 +1794,10 @@
     const fname    = curFilename;
 
     document.getElementById('legal-section-filename').textContent = fname;
-    setToolLoading(btn, 'Analysing…');
-    legalBod.innerHTML = `<div class="legal-loading"><div class="spinner-track" style="width:32px;height:32px;border-width:2px;margin:0 auto 14px;animation:spin .75s linear infinite"></div><p style="color:var(--g400);font-size:13px">Generating legal analysis…</p></div>`;
+    const legalLabel = text.length > 50000 ? 'Analysing (large doc)…' : 'Analysing…';
+    setToolLoading(btn, legalLabel);
+    const legalNote = text.length > 50000 ? ' This may take a moment for large documents.' : '';
+    legalBod.innerHTML = `<div class="legal-loading"><div class="spinner-track" style="width:32px;height:32px;border-width:2px;margin:0 auto 14px;animation:spin .75s linear infinite"></div><p style="color:var(--g400);font-size:13px">Generating legal analysis…${legalNote}</p></div>`;
     legalSec.classList.add('show');
     setTimeout(() => legalSec.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
 

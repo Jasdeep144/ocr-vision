@@ -222,6 +222,32 @@ COMBINED_EXCEL_CROSS_DOC_PROMPT = (
 )
 
 
+def parse_json_response(raw: str) -> dict:
+    """Extract and parse a JSON object from a model response.
+
+    Handles three common failure modes:
+      1. Markdown code fences  (```json ... ```)
+      2. Preamble text         ("Here is the analysis:\n{...")
+      3. Postamble text        ("{...}\nI hope this helps!")
+    """
+    raw = raw.strip()
+
+    # Strip markdown code fences
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[1]
+        if raw.endswith("```"):
+            raw = raw[:-3]
+        raw = raw.strip()
+
+    # Find the outermost { ... } block, discarding any surrounding text
+    start = raw.find("{")
+    end   = raw.rfind("}") + 1
+    if start != -1 and end > start:
+        raw = raw[start:end]
+
+    return json.loads(raw)
+
+
 def build_combined_excel(docs: list, cross_doc: dict) -> bytes:
     """Build a combined multi-document Excel workbook from per-doc JSON + cross-doc analysis."""
     from openpyxl import Workbook
@@ -755,16 +781,7 @@ def excel_summary_endpoint():
             max_tokens=4096,
             messages=[{"role": "user", "content": EXCEL_SUMMARY_PROMPT + "\n\n---\n\n" + condensed}],
         )
-        raw = response.content[0].text.strip()
-
-        # Strip markdown code fences if Claude wraps the JSON
-        if raw.startswith("```"):
-            raw = raw.split("\n", 1)[1]
-            if raw.endswith("```"):
-                raw = raw[:-3]
-            raw = raw.strip()
-
-        summary_data = json.loads(raw)
+        summary_data = parse_json_response(response.content[0].text)
         excel_bytes  = build_excel_summary(summary_data, filename)
 
         stem    = Path(filename).stem
@@ -795,15 +812,6 @@ def combined_legal_data_endpoint():
 
     model  = (data or {}).get("model", "claude-sonnet-4-6")
     client = make_client(api_key)
-
-    def parse_json_response(raw: str) -> dict:
-        raw = raw.strip()
-        if raw.startswith("```"):
-            raw = raw.split("\n", 1)[1]
-            if raw.endswith("```"):
-                raw = raw[:-3]
-            raw = raw.strip()
-        return json.loads(raw)
 
     try:
         # Pass 1 — structured JSON for each document
@@ -883,13 +891,7 @@ def legal_data_endpoint():
             max_tokens=4096,
             messages=[{"role": "user", "content": EXCEL_SUMMARY_PROMPT + "\n\n---\n\n" + condensed}],
         )
-        raw = response.content[0].text.strip()
-        if raw.startswith("```"):
-            raw = raw.split("\n", 1)[1]
-            if raw.endswith("```"):
-                raw = raw[:-3]
-            raw = raw.strip()
-        summary_data = json.loads(raw)
+        summary_data = parse_json_response(response.content[0].text)
         return jsonify({"data": summary_data, "filename": filename})
     except json.JSONDecodeError as e:
         return jsonify({"error": f"Failed to parse structured response: {e}"}), 500

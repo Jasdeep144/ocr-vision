@@ -199,6 +199,228 @@ EXCEL_SUMMARY_PROMPT = (
 )
 
 
+COMBINED_EXCEL_CROSS_DOC_PROMPT = (
+    "You are a senior legal professional reviewing {n} documents. "
+    "The structured summaries of each document are provided below. "
+    "Analyse them together and return ONLY a valid JSON object — no markdown, no code fences, raw JSON only.\n\n"
+    "Follow this exact schema. Keep every string concise (one sentence maximum). "
+    'Use "N/A" where information is absent. Arrays must never be null — use [] if nothing applies.\n\n'
+    '{\n'
+    '  "document_set_overview": "<2-3 sentence description of what this collection represents as a whole>",\n'
+    '  "overall_assessment": "<3-4 sentence professional assessment — balance, completeness, consistency, key advice>",\n'
+    '  "cross_document_issues": [\n'
+    '    {\n'
+    '      "severity": "<High or Medium or Low>",\n'
+    '      "issue_type": "<e.g. Conflicting Jurisdiction, Overlapping Obligation, Term Mismatch, Missing Counterpart>",\n'
+    '      "documents": ["<filename1>", "<filename2>"],\n'
+    '      "description": "<concise description of the cross-document issue>",\n'
+    '      "recommendation": "<concise advice>"\n'
+    '    }\n'
+    '  ]\n'
+    '}\n\n'
+    "Return only the JSON object. No markdown. No text before or after."
+)
+
+
+def build_combined_excel(docs: list, cross_doc: dict) -> bytes:
+    """Build a combined multi-document Excel workbook from per-doc JSON + cross-doc analysis."""
+    from openpyxl import Workbook
+    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    wb = Workbook()
+    wb.remove(wb.active)
+
+    # ── Palette ─────────────────────────────────────────────────────────────
+    def fill(hex_color):
+        return PatternFill("solid", fgColor=hex_color)
+
+    def hdr_font():
+        return Font(bold=True, color="FFFFFF", name="Calibri", size=11)
+
+    def bold_font():
+        return Font(bold=True, name="Calibri", size=10)
+
+    def body_font():
+        return Font(name="Calibri", size=10)
+
+    def wrap():
+        return Alignment(wrap_text=True, vertical="top")
+
+    def thin():
+        s = Side(style="thin", color="D1D5DB")
+        return Border(left=s, right=s, top=s, bottom=s)
+
+    NAVY  = "1E3A5F"
+    TEAL  = "0D9488"
+    GRAY  = "F1F5F9"
+    SEV_FILL = {
+        "High":   fill("FEE2E2"),
+        "Medium": fill("FEF3C7"),
+        "Low":    fill("DCFCE7"),
+    }
+
+    def safe(v):
+        s = str(v).strip() if v is not None else ""
+        return s if s and s.lower() not in ("none", "null") else "N/A"
+
+    def stem(filename):
+        return Path(filename).stem
+
+    def auto_widths(ws, max_w=65):
+        for col in ws.columns:
+            letter = get_column_letter(col[0].column)
+            best = max((len(str(c.value or "")) for c in col), default=8)
+            ws.column_dimensions[letter].width = min(best + 4, max_w)
+
+    def add_table(title, headers, rows, sev_col=None):
+        ws = wb.create_sheet(title)
+        ws.freeze_panes = "A2"
+        for ci, h in enumerate(headers, 1):
+            c = ws.cell(row=1, column=ci, value=h)
+            c.fill = fill(NAVY); c.font = hdr_font()
+            c.alignment = wrap(); c.border = thin()
+        for ri, row in enumerate(rows, 2):
+            sev_val  = safe(row[sev_col]) if sev_col is not None and len(row) > sev_col else None
+            row_fill = SEV_FILL.get(sev_val) or (fill(GRAY) if ri % 2 == 0 else None)
+            for ci, val in enumerate(row, 1):
+                c = ws.cell(row=ri, column=ci, value=safe(val))
+                if row_fill:
+                    c.fill = row_fill
+                c.font = body_font(); c.alignment = wrap(); c.border = thin()
+        if ws.max_row > 1:
+            ws.auto_filter.ref = ws.dimensions
+        auto_widths(ws)
+        return ws
+
+    n = len(docs)
+
+    # ── Sheet 1: Document Set Overview ──────────────────────────────────────
+    ws_ov = wb.create_sheet("Document Set")
+    ws_ov.freeze_panes = "B2"
+
+    tc = ws_ov.cell(row=1, column=1,
+                    value=f"Combined Legal Summary  —  {n} Documents")
+    ws_ov.merge_cells(f"A1:G1")
+    tc.fill = fill(TEAL)
+    tc.font = Font(bold=True, color="FFFFFF", name="Calibri", size=13)
+    tc.alignment = Alignment(horizontal="center", vertical="center")
+    tc.border = thin()
+    ws_ov.row_dimensions[1].height = 26
+
+    doc_headers = ["Document", "Type", "Purpose",
+                   "Effective Date", "Expiry Date", "Jurisdiction", "Applicable Law"]
+    for ci, h in enumerate(doc_headers, 1):
+        c = ws_ov.cell(row=2, column=ci, value=h)
+        c.fill = fill(NAVY); c.font = hdr_font()
+        c.alignment = wrap(); c.border = thin()
+
+    for ri, doc in enumerate(docs, 3):
+        d  = doc.get("data", {})
+        gl = d.get("governing_law") or {}
+        row_fill = fill(GRAY) if ri % 2 == 1 else None
+        for ci, val in enumerate([
+            stem(doc.get("filename", "document")),
+            d.get("document_type"), d.get("purpose"),
+            d.get("effective_date"), d.get("expiry_date"),
+            gl.get("jurisdiction"), gl.get("applicable_law"),
+        ], 1):
+            c = ws_ov.cell(row=ri, column=ci, value=safe(val))
+            if row_fill:
+                c.fill = row_fill
+            c.font = body_font(); c.alignment = wrap(); c.border = thin()
+
+    # Overview and Assessment footer block
+    next_row = len(docs) + 4
+    for label, text_key in [("Document Set Overview", "document_set_overview"),
+                             ("Overall Assessment",     "overall_assessment")]:
+        lc = ws_ov.cell(row=next_row, column=1, value=label)
+        ws_ov.merge_cells(f"A{next_row}:G{next_row}")
+        lc.fill = fill(NAVY); lc.font = hdr_font()
+        lc.alignment = Alignment(horizontal="left", vertical="center")
+        lc.border = thin()
+        next_row += 1
+        tc2 = ws_ov.cell(row=next_row, column=1,
+                          value=safe(cross_doc.get(text_key)))
+        ws_ov.merge_cells(f"A{next_row}:G{next_row}")
+        tc2.fill = fill("F8FAFC"); tc2.font = body_font()
+        tc2.alignment = Alignment(wrap_text=True, vertical="top")
+        tc2.border = thin()
+        ws_ov.row_dimensions[next_row].height = 60
+        next_row += 2
+
+    ws_ov.column_dimensions["A"].width = 22
+    ws_ov.column_dimensions["B"].width = 26
+    ws_ov.column_dimensions["C"].width = 40
+    ws_ov.column_dimensions["D"].width = 14
+    ws_ov.column_dimensions["E"].width = 14
+    ws_ov.column_dimensions["F"].width = 18
+    ws_ov.column_dimensions["G"].width = 28
+
+    # ── Sheets 2-7: Aggregated per-document data ─────────────────────────────
+    def agg(field, mapper):
+        rows = []
+        for doc in docs:
+            d = doc.get("data", {})
+            src = stem(doc.get("filename", "document"))
+            for item in (d.get(field) or []):
+                rows.append([src] + mapper(item))
+        return rows
+
+    add_table("Parties",
+        ["Source Document", "Name", "Role", "Jurisdiction"],
+        agg("parties", lambda p: [p.get("name"), p.get("role"), p.get("jurisdiction")]))
+
+    add_table("Obligations",
+        ["Source Document", "Party", "Obligation", "Deadline"],
+        agg("key_obligations", lambda o: [o.get("party"), o.get("obligation"), o.get("deadline")]))
+
+    add_table("Key Dates",
+        ["Source Document", "Date", "Event", "Party"],
+        agg("key_dates", lambda x: [x.get("date"), x.get("event"), x.get("party")]))
+
+    add_table("Financial Terms",
+        ["Source Document", "Item", "Amount", "Party", "Due Date"],
+        agg("financial_terms",
+            lambda f: [f.get("item"), f.get("amount"), f.get("party"), f.get("due_date")]))
+
+    add_table("Rights & Liabilities",
+        ["Source Document", "Party", "Type", "Description", "Cap / Limit"],
+        agg("rights_liabilities",
+            lambda r: [r.get("party"), r.get("type"), r.get("description"), r.get("cap")]))
+
+    add_table("Termination",
+        ["Source Document", "Trigger", "Notice Period", "Consequence"],
+        agg("termination_provisions",
+            lambda t: [t.get("trigger"), t.get("notice_period"), t.get("consequence")]))
+
+    # ── Sheet 8: Cross-Document Issues ───────────────────────────────────────
+    cross_rows = [
+        [i.get("severity"), i.get("issue_type"),
+         ", ".join(i.get("documents") or []),
+         i.get("description"), i.get("recommendation")]
+        for i in (cross_doc.get("cross_document_issues") or [])
+    ]
+    add_table("Cross-Doc Issues",
+        ["Severity", "Issue Type", "Documents", "Description", "Recommendation"],
+        cross_rows, sev_col=0)
+
+    # ── Sheet 9: Red Flags (all docs) ────────────────────────────────────────
+    rf_rows = []
+    for doc in docs:
+        src = stem(doc.get("filename", "document"))
+        for r in (doc.get("data", {}).get("red_flags") or []):
+            rf_rows.append([src, r.get("severity"), r.get("clause"),
+                            r.get("issue"), r.get("recommendation")])
+    add_table("Red Flags",
+        ["Source Document", "Severity", "Clause / Topic", "Issue", "Recommendation"],
+        rf_rows, sev_col=1)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
 def build_excel_summary(data: dict, doc_filename: str) -> bytes:
     """Build a styled multi-sheet Excel workbook from the structured legal summary JSON."""
     from openpyxl import Workbook
@@ -555,6 +777,85 @@ def excel_summary_endpoint():
         )
     except json.JSONDecodeError as e:
         return jsonify({"error": f"Failed to parse structured response: {e}"}), 500
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/combined-legal-data", methods=["POST"])
+def combined_legal_data_endpoint():
+    """Two-pass extraction: per-doc structured JSON + cross-doc synthesis."""
+    data = request.get_json()
+    docs = (data or {}).get("documents", [])
+    if not docs or len(docs) < 2:
+        return jsonify({"error": "At least 2 documents are required"}), 400
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        return jsonify({"error": "ANTHROPIC_API_KEY is not set"}), 400
+
+    model  = (data or {}).get("model", "claude-sonnet-4-6")
+    client = make_client(api_key)
+
+    def parse_json_response(raw: str) -> dict:
+        raw = raw.strip()
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[1]
+            if raw.endswith("```"):
+                raw = raw[:-3]
+            raw = raw.strip()
+        return json.loads(raw)
+
+    try:
+        # Pass 1 — structured JSON for each document
+        per_doc: list[dict] = []
+        for doc in docs:
+            text     = doc.get("text", "").strip()
+            filename = doc.get("filename", "document")
+            condensed = prepare_text_for_summary(text, client, model)
+            resp = client.messages.create(
+                model=model, max_tokens=4096,
+                messages=[{"role": "user",
+                           "content": EXCEL_SUMMARY_PROMPT + "\n\n---\n\n" + condensed}],
+            )
+            per_doc.append({"filename": filename,
+                            "data": parse_json_response(resp.content[0].text)})
+
+        # Pass 2 — cross-document synthesis
+        summaries = "\n\n".join(
+            f"--- Document {i+1}: {r['filename']} ---\n{json.dumps(r['data'], indent=2)}"
+            for i, r in enumerate(per_doc)
+        )
+        cross_resp = client.messages.create(
+            model=model, max_tokens=4096,
+            messages=[{"role": "user",
+                       "content": COMBINED_EXCEL_CROSS_DOC_PROMPT.format(n=len(docs))
+                                  + "\n\n" + summaries}],
+        )
+        cross_doc = parse_json_response(cross_resp.content[0].text)
+        return jsonify({"docs": per_doc, "cross_doc": cross_doc})
+
+    except json.JSONDecodeError as e:
+        return jsonify({"error": f"Failed to parse structured response: {e}"}), 500
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/combined-excel-from-json", methods=["POST"])
+def combined_excel_from_json_endpoint():
+    """Build combined xlsx from cached JSON — no Claude call."""
+    body      = request.get_json()
+    docs      = (body or {}).get("docs")
+    cross_doc = (body or {}).get("cross_doc")
+    if not docs or not cross_doc:
+        return jsonify({"error": "Missing docs or cross_doc"}), 400
+    try:
+        excel_bytes = build_combined_excel(docs, cross_doc)
+        return send_file(
+            io.BytesIO(excel_bytes),
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            as_attachment=True,
+            download_name="combined_legal_summary.xlsx",
+        )
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
 

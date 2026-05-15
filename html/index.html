@@ -621,12 +621,14 @@
     .reocr-btn:disabled { opacity: .6; cursor: not-allowed; }
 
     /* ── Embedded legal data viewer ── */
-    #excel-data-section {
+    #excel-data-section,
+    #combined-excel-section {
       display: none;
       max-width: 1100px; margin: 0 auto;
       padding: 0 24px 40px;
     }
-    #excel-data-section.show { display: block; animation: slide-up .4s ease both; }
+    #excel-data-section.show,
+    #combined-excel-section.show { display: block; animation: slide-up .4s ease both; }
     .ld-tab-bar {
       display: flex;
       border-bottom: 1px solid var(--g200);
@@ -1079,6 +1081,50 @@
         </button>
       </div>
 
+      <!-- Combined Excel Summary (multi-file only) -->
+      <div class="tool-card" id="combined-excel-tool-card" style="display:none">
+        <div class="tool-card-left">
+          <div class="tool-icon-box" style="background:#f0fdf4" aria-hidden="true">
+            <svg width="20" height="20" fill="none" stroke="#16a34a" stroke-width="1.75" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125
+                       M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125
+                       m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125
+                       m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125h-7.5
+                       c-.621 0-1.125-.504-1.125-1.125m9.75-12.75
+                       c0-.621-.504-1.125-1.125-1.125H4.5
+                       A1.125 1.125 0 003.375 5.625m16.5 0v1.5
+                       c0 .621-.504 1.125-1.125 1.125h-1.5
+                       a1.125 1.125 0 00-1.125 1.125v1.5
+                       c0 .621.504 1.125 1.125 1.125h1.5
+                       c.621 0 1.125.504 1.125 1.125v1.5"/>
+            </svg>
+          </div>
+          <div>
+            <div class="tool-title">Combined Excel</div>
+            <div class="tool-desc">Multi-document Excel export — 9 sheets: per-doc data aggregated with a "Source" column, plus cross-document conflict analysis</div>
+          </div>
+        </div>
+        <button class="btn btn-secondary" id="combined-excel-btn" onclick="combinedExcel()"
+                aria-label="Generate combined Excel summary across all documents">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125
+                     M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125
+                     m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125
+                     m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125h-7.5
+                     c-.621 0-1.125-.504-1.125-1.125m9.75-12.75
+                     c0-.621-.504-1.125-1.125-1.125H4.5
+                     A1.125 1.125 0 003.375 5.625m16.5 0v1.5
+                     c0 .621-.504 1.125-1.125 1.125h-1.5
+                     a1.125 1.125 0 00-1.125 1.125v1.5
+                     c0 .621.504 1.125 1.125 1.125h1.5
+                     c.621 0 1.125.504 1.125 1.125v1.5"/>
+          </svg>
+          Combined Excel
+        </button>
+      </div>
+
     </div>
   </section>
 
@@ -1166,6 +1212,48 @@
         </div>
       </div>
       <div class="legal-body" id="combined-body"></div>
+    </div>
+  </section>
+
+  <!-- Combined Excel Viewer (multi-document) -->
+  <section id="combined-excel-section" aria-label="Combined legal data viewer" aria-live="polite">
+    <div class="card">
+      <div class="card-head">
+        <div class="card-head-title">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125
+                     M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625
+                     m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625
+                     m0 12.75c0 .621-.504 1.125-1.125 1.125h-7.5
+                     c-.621 0-1.125-.504-1.125-1.125m9.75-12.75
+                     c0-.621-.504-1.125-1.125-1.125H4.5
+                     A1.125 1.125 0 003.375 5.625m16.5 0v1.5
+                     c0 .621-.504 1.125-1.125 1.125h-1.5
+                     a1.125 1.125 0 00-1.125 1.125v1.5
+                     c0 .621.504 1.125 1.125 1.125h1.5
+                     c.621 0 1.125.504 1.125 1.125v1.5"/>
+          </svg>
+          Combined Legal Data
+          <span id="combined-excel-count" style="font-weight:400;color:var(--g500);margin-left:4px"></span>
+        </div>
+        <button class="btn btn-primary" id="combined-excel-dl-btn" onclick="downloadCombinedExcel()"
+                aria-label="Download combined Excel file">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round"
+                  d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5
+                     M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+          </svg>
+          Download .xlsx
+        </button>
+      </div>
+      <div class="ld-tab-bar" id="cld-tab-bar"></div>
+      <div class="ld-panels" id="cld-panels">
+        <div class="legal-loading">
+          <div class="spinner-track" style="width:32px;height:32px;border-width:2px;margin:0 auto 14px;animation:spin .75s linear infinite"></div>
+          <p style="color:var(--g400);font-size:13px">Extracting combined legal data…</p>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -1270,9 +1358,10 @@
   let batchFiles        = [];    // [{file, text, status, error, method}]
   let isBatchMode       = false;
   let activeTabIdx      = -1;
-  let cachedLegalData   = null;
+  let cachedLegalData     = null;
   let cachedLegalFilename = '';
-  let activeLdTab       = 0;
+  let activeLdTab         = 0;
+  let cachedCombinedData  = null;  // {docs, cross_doc} for combined Excel
 
   /* ── DOM ── */
   const zone       = document.getElementById('upload-zone');
@@ -1408,7 +1497,8 @@
     zone.style.display = '';
     results.classList.add('show');
     document.getElementById('post-tools').classList.add('show');
-    document.getElementById('combined-tool-card').style.display = 'none';
+    document.getElementById('combined-tool-card').style.display       = 'none';
+    document.getElementById('combined-excel-tool-card').style.display = 'none';
     results.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -1555,7 +1645,8 @@
     tabBar.classList.add('show');
     results.classList.add('show');
     document.getElementById('post-tools').classList.add('show');
-    document.getElementById('combined-tool-card').style.display = done >= 2 ? '' : 'none';
+    document.getElementById('combined-tool-card').style.display       = done >= 2 ? '' : 'none';
+    document.getElementById('combined-excel-tool-card').style.display = done >= 2 ? '' : 'none';
     results.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -1731,25 +1822,31 @@
     document.getElementById('legal-section').classList.remove('show');
     document.getElementById('combined-section').classList.remove('show');
     document.getElementById('excel-data-section').classList.remove('show');
+    document.getElementById('combined-excel-section').classList.remove('show');
     document.getElementById('legal-body').innerHTML    = '';
     document.getElementById('combined-body').innerHTML = '';
     document.getElementById('ld-tab-bar').innerHTML    = '';
     document.getElementById('ld-panels').innerHTML     = '';
-    document.getElementById('combined-tool-card').style.display = 'none';
-    resetToolBtn('translate-btn', TRANSLATE_BTN_HTML);
-    resetToolBtn('legal-btn',     LEGAL_BTN_HTML);
-    resetToolBtn('excel-btn',     EXCEL_BTN_HTML);
-    resetToolBtn('combined-btn',  COMBINED_BTN_HTML);
+    document.getElementById('cld-tab-bar').innerHTML   = '';
+    document.getElementById('cld-panels').innerHTML    = '';
+    document.getElementById('combined-tool-card').style.display       = 'none';
+    document.getElementById('combined-excel-tool-card').style.display = 'none';
+    resetToolBtn('translate-btn',     TRANSLATE_BTN_HTML);
+    resetToolBtn('legal-btn',         LEGAL_BTN_HTML);
+    resetToolBtn('excel-btn',         EXCEL_BTN_HTML);
+    resetToolBtn('combined-btn',      COMBINED_BTN_HTML);
+    resetToolBtn('combined-excel-btn', COMBINED_EXCEL_BTN_HTML);
     setMethodBadge('');
-    zone.style.display = '';
-    inp.value         = '';
-    curFilename       = '';
-    curFile           = null;
-    batchFiles        = [];
-    isBatchMode       = false;
-    activeTabIdx      = -1;
-    cachedLegalData   = null;
-    cachedLegalFilename = '';
+    zone.style.display    = '';
+    inp.value             = '';
+    curFilename           = '';
+    curFile               = null;
+    batchFiles            = [];
+    isBatchMode           = false;
+    activeTabIdx          = -1;
+    cachedLegalData       = null;
+    cachedLegalFilename   = '';
+    cachedCombinedData    = null;
     setProg(0);
     clearErr();
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1803,6 +1900,7 @@
   const TRANSLATE_BTN_HTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" d="M2 12h20M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg> Translate`;
   const LEGAL_BTN_HTML     = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z"/></svg> Analyse`;
   const COMBINED_BTN_HTML  = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z"/></svg> Assess All`;
+  const COMBINED_EXCEL_BTN_HTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125h-7.5c-.621 0-1.125-.504-1.125-1.125m9.75-12.75c0-.621-.504-1.125-1.125-1.125H4.5A1.125 1.125 0 003.375 5.625m16.5 0v1.5c0 .621-.504 1.125-1.125 1.125h-1.5a1.125 1.125 0 00-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125h1.5c.621 0 1.125.504 1.125 1.125v1.5"/></svg> Combined Excel`;
 
   function setToolLoading(btn, msg) {
     btn.disabled  = true;
@@ -1834,15 +1932,14 @@
     return (s && s.toLowerCase() !== 'null' && s.toLowerCase() !== 'undefined') ? s : 'N/A';
   }
 
-  function ldTable(headers, rows, rowCls) {
+  function ldTable(headers, rows, rowCls, sevCol = 0) {
     if (!rows || rows.length === 0)
       return `<p class="ld-empty">No entries recorded</p>`;
     const ths = headers.map(h => `<th>${escHtml(h)}</th>`).join('');
     const trs = rows.map(r => {
       const cls = rowCls ? ` class="${escHtml(rowCls(r))}"` : '';
       const tds = r.map((v, ci) => {
-        // Severity column in Red Flags — render as pill
-        if (rowCls && ci === 0) {
+        if (rowCls && ci === sevCol) {
           const sev = ldSafe(v).toLowerCase();
           return `<td><span class="ld-sev ld-sev-${sev}">${escHtml(ldSafe(v))}</span></td>`;
         }
@@ -1968,6 +2065,168 @@
         const stem = (cachedLegalFilename || 'document').replace(/\.[^.]+$/, '');
         dlBlob(blob, stem + '_legal_summary.xlsx', blob.type);
         toast('⬇', 'Excel downloaded');
+      }
+    } catch (e) {
+      showErr('Download failed: ' + e.message);
+    }
+    btn.disabled  = false;
+    btn.innerHTML = orig;
+  }
+
+  /* ── Combined Excel (multi-document) ── */
+
+  const CLD_TABS = [
+    'Document Set', 'Parties', 'Obligations', 'Key Dates',
+    'Financial', 'Rights & Liabilities', 'Termination',
+    'Cross-Doc Issues', 'Red Flags',
+  ];
+
+  function ldStem(fname) { return fname.replace(/\.[^.]+$/, ''); }
+
+  function renderCombinedData(result) {
+    const docs = result.docs;       // [{filename, data}, ...]
+    const cd   = result.cross_doc;  // {document_set_overview, overall_assessment, cross_document_issues}
+
+    // Tab 0: Document Set — overview rows + assessment block
+    const docRows = docs.map(d => {
+      const gl = d.data.governing_law || {};
+      return [ldStem(d.filename), d.data.document_type, d.data.purpose,
+              d.data.effective_date, d.data.expiry_date, gl.jurisdiction];
+    });
+    const docSetHtml =
+      `<div style="padding:14px 18px;background:#f8fafc;border-bottom:1px solid var(--g100)">` +
+      `<p style="font-size:13px;color:var(--g700);margin-bottom:6px"><strong>Document Set:</strong> ${escHtml(ldSafe(cd.document_set_overview))}</p>` +
+      `<p style="font-size:13px;color:var(--g700);font-style:italic">${escHtml(ldSafe(cd.overall_assessment))}</p>` +
+      `</div>` +
+      ldTable(['Document', 'Type', 'Purpose', 'Effective Date', 'Expiry Date', 'Jurisdiction'], docRows);
+
+    // Helper: flatten field from all docs with source column
+    function agg(field, mapper) {
+      return docs.flatMap(d =>
+        (d.data[field] || []).map(item => [ldStem(d.filename), ...mapper(item)])
+      );
+    }
+
+    // Cross-Doc Issues (severity at col 0)
+    const crossRows = (cd.cross_document_issues || []).map(i => [
+      i.severity, i.issue_type,
+      (i.documents || []).map(ldStem).join(', '),
+      i.description, i.recommendation,
+    ]);
+
+    // Red Flags (source doc at col 0, severity at col 1)
+    const rfRows = docs.flatMap(d =>
+      (d.data.red_flags || []).map(r =>
+        [ldStem(d.filename), r.severity, r.clause, r.issue, r.recommendation]
+      )
+    );
+
+    const panelHtmls = [
+      docSetHtml,
+      ldTable(['Source Document', 'Name', 'Role', 'Jurisdiction'],
+        agg('parties', p => [p.name, p.role, p.jurisdiction])),
+      ldTable(['Source Document', 'Party', 'Obligation', 'Deadline'],
+        agg('key_obligations', o => [o.party, o.obligation, o.deadline])),
+      ldTable(['Source Document', 'Date', 'Event', 'Party'],
+        agg('key_dates', x => [x.date, x.event, x.party])),
+      ldTable(['Source Document', 'Item', 'Amount', 'Party', 'Due Date'],
+        agg('financial_terms', f => [f.item, f.amount, f.party, f.due_date])),
+      ldTable(['Source Document', 'Party', 'Type', 'Description', 'Cap / Limit'],
+        agg('rights_liabilities', r => [r.party, r.type, r.description, r.cap])),
+      ldTable(['Source Document', 'Trigger', 'Notice Period', 'Consequence'],
+        agg('termination_provisions', t => [t.trigger, t.notice_period, t.consequence])),
+      ldTable(['Severity', 'Issue Type', 'Documents', 'Description', 'Recommendation'],
+        crossRows, r => `ld-rf-${(r[0] || '').toLowerCase()}`),
+      ldTable(['Source Document', 'Severity', 'Clause / Topic', 'Issue', 'Recommendation'],
+        rfRows, r => `ld-rf-${(r[1] || '').toLowerCase()}`, 1),
+    ];
+
+    document.getElementById('cld-tab-bar').innerHTML =
+      CLD_TABS.map((lbl, i) =>
+        `<button class="ld-tab${i === 0 ? ' active' : ''}" onclick="showCldTab(${i})">${lbl}</button>`
+      ).join('');
+
+    document.getElementById('cld-panels').innerHTML =
+      panelHtmls.map((html, i) =>
+        `<div class="ld-panel${i === 0 ? ' active' : ''}">${html}</div>`
+      ).join('');
+  }
+
+  function showCldTab(idx) {
+    document.querySelectorAll('#cld-tab-bar .ld-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
+    document.querySelectorAll('#cld-panels .ld-panel').forEach((p, i) => p.classList.toggle('active', i === idx));
+  }
+
+  async function combinedExcel() {
+    const doneDocs = batchFiles
+      .filter(f => f.status === 'done' && f.text)
+      .map(f => ({ filename: f.file.name, text: f.text }));
+
+    if (doneDocs.length < 2) {
+      toast('⚠', 'Need at least 2 processed documents');
+      return;
+    }
+
+    const btn = document.getElementById('combined-excel-btn');
+    const sec = document.getElementById('combined-excel-section');
+    const totalChars = doneDocs.reduce((s, d) => s + d.text.length, 0);
+    const label = totalChars > 50000 ? 'Extracting (large docs)…' : 'Extracting…';
+
+    setToolLoading(btn, label);
+    document.getElementById('combined-excel-count').textContent = `— ${doneDocs.length} documents`;
+    document.getElementById('cld-tab-bar').innerHTML = '';
+    document.getElementById('cld-panels').innerHTML  =
+      `<div class="legal-loading">` +
+      `<div class="spinner-track" style="width:32px;height:32px;border-width:2px;margin:0 auto 14px;animation:spin .75s linear infinite"></div>` +
+      `<p style="color:var(--g400);font-size:13px">Extracting structured data from ${doneDocs.length} documents${totalChars > 50000 ? ' — this may take a moment…' : '…'}</p>` +
+      `</div>`;
+    sec.classList.add('show');
+    setTimeout(() => sec.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+
+    try {
+      const resp   = await fetch('/api/combined-legal-data', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documents: doneDocs }),
+      });
+      const result = await resp.json();
+      if (result.error) {
+        showErr(result.error);
+        sec.classList.remove('show');
+        resetToolBtn('combined-excel-btn', COMBINED_EXCEL_BTN_HTML);
+        return;
+      }
+      cachedCombinedData = result;
+      renderCombinedData(result);
+      toast('📊', 'Combined data ready');
+      btn.disabled  = false;
+      btn.className = 'btn btn-success';
+      btn.innerHTML = `<svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4.5 12.75l6 6 9-13.5"/></svg> Done`;
+    } catch (e) {
+      showErr('Combined Excel failed: ' + e.message);
+      sec.classList.remove('show');
+      resetToolBtn('combined-excel-btn', COMBINED_EXCEL_BTN_HTML);
+    }
+  }
+
+  async function downloadCombinedExcel() {
+    if (!cachedCombinedData) { toast('⚠', 'Generate the combined data first'); return; }
+    const btn  = document.getElementById('combined-excel-dl-btn');
+    const orig = btn.innerHTML;
+    btn.disabled  = true;
+    btn.innerHTML =
+      `<div class="spinner-track" style="width:13px;height:13px;border-width:2px;flex-shrink:0;animation:spin .75s linear infinite"></div> Preparing…`;
+    try {
+      const resp = await fetch('/api/combined-excel-from-json', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cachedCombinedData),
+      });
+      if (!resp.ok) {
+        const err = await resp.json();
+        showErr(err.error || 'Download failed');
+      } else {
+        const blob = await resp.blob();
+        dlBlob(blob, 'combined_legal_summary.xlsx', blob.type);
+        toast('⬇', 'Combined Excel downloaded');
       }
     } catch (e) {
       showErr('Download failed: ' + e.message);

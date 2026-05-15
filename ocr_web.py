@@ -15,12 +15,12 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template, request, send_file
 
 sys.path.insert(0, str(Path(__file__).parent))
-from ocr_document import make_client, ocr_image_file, ocr_pdf, try_extract_pdf_text
+from ocr_document import make_client, ocr_image_file, ocr_pdf, try_extract_pdf_text, extract_docx_text
 
 app = Flask(__name__, template_folder="html")
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB
 
-ALLOWED = {".pdf", ".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp", ".gif", ".webp"}
+ALLOWED   = {".pdf", ".docx", ".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp", ".gif", ".webp"}
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp", ".gif", ".webp"}
 
 CHUNK_SIZE           = 60_000   # ~15 k tokens — safe single-call limit for summaries
@@ -395,16 +395,27 @@ def ocr_endpoint():
         tmp_path = Path(tmp.name)
 
     try:
-        if suffix == ".pdf":
+        if suffix == ".docx":
+            text = extract_docx_text(tmp_path)
+            if not text:
+                return jsonify({
+                    "error": "Could not extract text from this Word document. "
+                             "It may contain only embedded images — save as PDF and retry."
+                }), 400
+            return jsonify({"text": text, "filename": file.filename, "method": "direct"})
+
+        elif suffix == ".pdf":
             if not force_images and not skip_direct:
                 direct_text = try_extract_pdf_text(tmp_path)
                 if direct_text:
                     return jsonify({"text": direct_text, "filename": file.filename, "method": "direct"})
             text = ocr_pdf(tmp_path, client, model, dpi, force_images)
             return jsonify({"text": text, "filename": file.filename, "method": "ocr"})
+
         else:
             text = ocr_image_file(tmp_path, client, model)
             return jsonify({"text": text, "filename": file.filename, "method": "ocr"})
+
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
     finally:

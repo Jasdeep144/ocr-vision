@@ -735,7 +735,7 @@
       Legal Document Intelligence,<br><span class="grad">Powered by AI</span>
     </h1>
     <p class="hero-sub">
-      Upload any document — PDF, scan, or image — individually or in batches. SpectreAI extracts the text, translates from any language, and delivers a structured legal summary covering parties, obligations, key dates, and risk flags.
+      Upload any document — PDF, Word (.docx), scan, or image — individually or in batches. SpectreAI extracts the text, translates from any language, and delivers a structured legal summary covering parties, obligations, key dates, and risk flags.
     </p>
 
     <div class="upload-wrap">
@@ -744,7 +744,7 @@
       <div class="upload-zone" id="upload-zone" role="button" tabindex="0"
            aria-label="Upload zone — drag and drop or click to select files">
         <input type="file" id="file-input" multiple
-               accept=".pdf,.png,.jpg,.jpeg,.tiff,.tif,.bmp,.gif,.webp"
+               accept=".pdf,.docx,.png,.jpg,.jpeg,.tiff,.tif,.bmp,.gif,.webp"
                aria-label="Select files for OCR" />
 
         <div class="upload-icon" aria-hidden="true">
@@ -760,6 +760,7 @@
 
         <div class="format-row" aria-label="Supported formats">
           <span class="fmt-chip">PDF</span>
+          <span class="fmt-chip">DOCX</span>
           <span class="fmt-chip">PNG</span>
           <span class="fmt-chip">JPG</span>
           <span class="fmt-chip">JPEG</span>
@@ -1304,10 +1305,10 @@
 
   /* ── File selection entry point ── */
   function handleFileSelection(files) {
-    const allowed = ['pdf','png','jpg','jpeg','tiff','tif','bmp','gif','webp'];
+    const allowed = ['pdf','docx','png','jpg','jpeg','tiff','tif','bmp','gif','webp'];
     const valid   = files.filter(f => allowed.includes(f.name.split('.').pop().toLowerCase()));
     if (valid.length === 0) {
-      showErr('Unsupported file type. Accepted: PDF, PNG, JPG, JPEG, TIFF, BMP, GIF, WebP.');
+      showErr('Unsupported file type. Accepted: PDF, DOCX, PNG, JPG, JPEG, TIFF, BMP, GIF, WebP.');
       return;
     }
     clearErr();

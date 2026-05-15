@@ -5,3 +5,4 @@ Pillow
 pdf2image
 pypdf
 openpyxl
+python-docx

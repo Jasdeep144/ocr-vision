@@ -71,6 +71,40 @@ def try_extract_pdf_text(path: Path) -> str | None:
         return None
 
 
+def extract_docx_text(path: Path) -> str | None:
+    """Extract text from a Word .docx file, preserving paragraphs and tables in document order."""
+    try:
+        from docx import Document
+    except ImportError:
+        return None
+    try:
+        doc = Document(str(path))
+        ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        parts: list[str] = []
+
+        for block in doc.element.body:
+            local = block.tag.split("}")[-1]
+
+            if local == "p":
+                text = "".join((n.text or "") for n in block.iter(f"{{{ns}}}t"))
+                if text.strip():
+                    parts.append(text.strip())
+
+            elif local == "tbl":
+                for tr in block.iter(f"{{{ns}}}tr"):
+                    row = " | ".join(
+                        "".join((n.text or "") for n in tc.iter(f"{{{ns}}}t")).strip()
+                        for tc in tr.findall(f"{{{ns}}}tc")
+                    )
+                    if row.strip():
+                        parts.append(row)
+
+        full_text = "\n\n".join(parts)
+        return full_text if full_text.strip() else None
+    except Exception:
+        return None
+
+
 def get_api_key(provided: str | None) -> str:
     key = provided or os.environ.get("ANTHROPIC_API_KEY")
     if not key:
@@ -273,7 +307,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="High-accuracy OCR powered by Claude Vision API."
     )
-    parser.add_argument("input", help="Path to image or PDF file")
+    parser.add_argument("input", help="Path to image, PDF, or Word (.docx) file")
     parser.add_argument("-o", "--output", help="Output text file (default: print to stdout)")
     parser.add_argument("--api-key",    help="Anthropic API key (or set ANTHROPIC_API_KEY)")
     parser.add_argument(
@@ -303,7 +337,15 @@ def main():
 
     print(f"Processing: {input_path.name}  [model: {args.model}]")
 
-    if suffix == ".pdf":
+    if suffix == ".docx":
+        text = extract_docx_text(input_path)
+        if not text:
+            print("ERROR: Could not extract text from this Word document.")
+            print("  The file may contain only embedded images.")
+            print("  Tip: Save as PDF and retry — the PDF path supports AI OCR.")
+            sys.exit(1)
+        print("  Direct text extraction — Word document.")
+    elif suffix == ".pdf":
         if not args.force_images:
             direct = try_extract_pdf_text(input_path)
             if direct:
@@ -318,7 +360,7 @@ def main():
         text = ocr_image_file(input_path, client, args.model)
     else:
         print(f"ERROR: Unsupported file type '{suffix}'")
-        print(f"  Supported: {', '.join(sorted(image_ext))} and .pdf")
+        print(f"  Supported: .docx, .pdf, {', '.join(sorted(image_ext))}")
         sys.exit(1)
 
     if args.output:

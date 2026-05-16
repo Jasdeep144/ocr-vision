@@ -901,7 +901,7 @@ def combined_legal_data_endpoint():
         cross_resp = client.messages.create(
             model=model, max_tokens=8192,
             messages=[{"role": "user",
-                       "content": COMBINED_EXCEL_CROSS_DOC_PROMPT.format(n=len(docs))
+                       "content": COMBINED_EXCEL_CROSS_DOC_PROMPT.replace("{n}", str(len(docs)))
                                   + "\n\n" + summaries}],
         )
         cross_doc = parse_json_response(cross_resp.content[0].text)

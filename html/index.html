@@ -700,6 +700,48 @@
       padding: 28px; text-align: center; color: var(--g400);
       font-size: 13px; font-style: italic;
     }
+
+    /* ── Citation slide-in panel ── */
+    .cite-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.38); z-index: 900;
+      opacity: 0; pointer-events: none; transition: opacity .2s;
+    }
+    .cite-overlay.show { opacity: 1; pointer-events: auto; }
+    .cite-panel {
+      position: fixed; top: 0; right: 0; height: 100%; width: 440px;
+      max-width: 96vw; background: #fff;
+      box-shadow: -4px 0 28px rgba(0,0,0,.18); z-index: 901;
+      transform: translateX(100%); transition: transform .25s ease;
+      display: flex; flex-direction: column;
+    }
+    .cite-panel.open { transform: translateX(0); }
+    .cite-panel-hdr {
+      display: flex; align-items: center; gap: 10px;
+      padding: 13px 16px; border-bottom: 1px solid #e2e8f0;
+      background: #1E3A5F; flex-shrink: 0;
+    }
+    .cite-doc-chip {
+      flex: 1; font-size: 12px; font-weight: 600; color: #fff;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .cite-close {
+      background: none; border: none; color: #fff; font-size: 18px;
+      cursor: pointer; padding: 2px 6px; line-height: 1; flex-shrink: 0;
+    }
+    .cite-close:hover { color: #FCA5A5; }
+    .cite-panel-body { flex: 1; overflow-y: auto; padding: 16px 18px; }
+    .cite-text {
+      white-space: pre-wrap; font-family: inherit; font-size: 12.5px;
+      line-height: 1.75; color: #374151; margin: 0;
+    }
+    .cite-mark { background: #FEF08A; border-radius: 2px; padding: 0 2px; }
+    .cite-btn {
+      background: none; border: 1px solid #CBD5E1; border-radius: 4px;
+      padding: 2px 8px; font-size: 11px; color: #1E3A5F; cursor: pointer;
+      white-space: nowrap; line-height: 1.6;
+    }
+    .cite-btn:hover { background: #EFF6FF; border-color: #93C5FD; }
+    .ld-tbl td:last-child .cite-btn { display: inline-block; }
   </style>
 </head>
 <body>
@@ -1360,8 +1402,10 @@
   let activeTabIdx      = -1;
   let cachedLegalData     = null;
   let cachedLegalFilename = '';
+  let cachedLegalSessionId = '';
   let activeLdTab         = 0;
-  let cachedCombinedData  = null;  // {docs, cross_doc} for combined Excel
+  let cachedCombinedData  = null;  // {docs, cross_doc, session_id} for combined Excel
+  let activeCiteSession   = '';    // session_id used by the citation panel
 
   /* ── DOM ── */
   const zone       = document.getElementById('upload-zone');
@@ -1846,7 +1890,10 @@
     activeTabIdx          = -1;
     cachedLegalData       = null;
     cachedLegalFilename   = '';
+    cachedLegalSessionId  = '';
     cachedCombinedData    = null;
+    activeCiteSession     = '';
+    closeCitePanel();
     setProg(0);
     clearErr();
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1932,11 +1979,13 @@
     return (s && s.toLowerCase() !== 'null' && s.toLowerCase() !== 'undefined') ? s : 'N/A';
   }
 
-  function ldTable(headers, rows, rowCls, sevCol = 0) {
+  function ldTable(headers, rows, rowCls, sevCol = 0, quotes = null) {
     if (!rows || rows.length === 0)
       return `<p class="ld-empty">No entries recorded</p>`;
-    const ths = headers.map(h => `<th>${escHtml(h)}</th>`).join('');
-    const trs = rows.map(r => {
+    const hasQ = quotes && quotes.some(q => q && q.quote);
+    const allHeaders = hasQ ? [...headers, ''] : headers;
+    const ths = allHeaders.map(h => `<th>${escHtml(h)}</th>`).join('');
+    const trs = rows.map((r, ri) => {
       const cls = rowCls ? ` class="${escHtml(rowCls(r))}"` : '';
       const tds = r.map((v, ci) => {
         if (rowCls && ci === sevCol) {
@@ -1945,12 +1994,20 @@
         }
         return `<td>${escHtml(ldSafe(v))}</td>`;
       }).join('');
-      return `<tr${cls}>${tds}</tr>`;
+      let citeTd = '';
+      if (hasQ) {
+        const q = quotes[ri];
+        citeTd = (q && q.quote)
+          ? `<td><button class="cite-btn" onclick="openCite(${JSON.stringify(q.doc)},${JSON.stringify(q.quote)})">↗</button></td>`
+          : '<td></td>';
+      }
+      return `<tr${cls}>${tds}${citeTd}</tr>`;
     }).join('');
     return `<table class="ld-tbl"><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
   }
 
-  function renderLegalData(d) {
+  function renderLegalData(d, sessionId, filename) {
+    activeCiteSession = sessionId || '';
     const gl = d.governing_law || {};
 
     const kvRows = [
@@ -1969,23 +2026,34 @@
       `<tr class="ld-assessment-row"><th colspan="2" style="background:#1E3A5F;color:#fff;font-size:12px;text-transform:uppercase;letter-spacing:.05em;padding:7px 18px">Overall Assessment</th></tr>` +
       `<tr><td colspan="2" style="font-style:italic;color:var(--g700);background:#f8fafc;padding:12px 18px;line-height:1.6">${escHtml(ldSafe(d.overall_assessment))}</td></tr>`;
 
+    const fn = filename || '';
+    function sq(items) {
+      return (items || []).map(i => i.source_quote ? {doc: fn, quote: i.source_quote} : null);
+    }
+
     const panelHtmls = [
       `<table class="ld-kv">${kvHtml}${assessHtml}</table>`,
       ldTable(['Name', 'Role', 'Jurisdiction'],
-        (d.parties || []).map(p => [p.name, p.role, p.jurisdiction])),
+        (d.parties || []).map(p => [p.name, p.role, p.jurisdiction]),
+        null, 0, sq(d.parties)),
       ldTable(['Party', 'Obligation', 'Deadline'],
-        (d.key_obligations || []).map(o => [o.party, o.obligation, o.deadline])),
+        (d.key_obligations || []).map(o => [o.party, o.obligation, o.deadline]),
+        null, 0, sq(d.key_obligations)),
       ldTable(['Date', 'Event', 'Party'],
-        (d.key_dates || []).map(x => [x.date, x.event, x.party])),
+        (d.key_dates || []).map(x => [x.date, x.event, x.party]),
+        null, 0, sq(d.key_dates)),
       ldTable(['Item', 'Amount', 'Party', 'Due Date'],
-        (d.financial_terms || []).map(f => [f.item, f.amount, f.party, f.due_date])),
+        (d.financial_terms || []).map(f => [f.item, f.amount, f.party, f.due_date]),
+        null, 0, sq(d.financial_terms)),
       ldTable(['Party', 'Type', 'Description', 'Cap / Limit'],
-        (d.rights_liabilities || []).map(r => [r.party, r.type, r.description, r.cap])),
+        (d.rights_liabilities || []).map(r => [r.party, r.type, r.description, r.cap]),
+        null, 0, sq(d.rights_liabilities)),
       ldTable(['Trigger', 'Notice Period', 'Consequence'],
-        (d.termination_provisions || []).map(t => [t.trigger, t.notice_period, t.consequence])),
+        (d.termination_provisions || []).map(t => [t.trigger, t.notice_period, t.consequence]),
+        null, 0, sq(d.termination_provisions)),
       ldTable(['Severity', 'Clause / Topic', 'Issue', 'Recommendation'],
         (d.red_flags || []).map(r => [r.severity, r.clause, r.issue, r.recommendation]),
-        r => `ld-rf-${(r[0] || '').toLowerCase()}`),
+        r => `ld-rf-${(r[0] || '').toLowerCase()}`, 0, sq(d.red_flags)),
     ];
 
     document.getElementById('ld-tab-bar').innerHTML =
@@ -2031,9 +2099,10 @@
         resetToolBtn('excel-btn', EXCEL_BTN_HTML);
         return;
       }
-      cachedLegalData     = result.data;
-      cachedLegalFilename = result.filename || fname || 'document';
-      renderLegalData(result.data);
+      cachedLegalData      = result.data;
+      cachedLegalFilename  = result.filename || fname || 'document';
+      cachedLegalSessionId = result.session_id || '';
+      renderLegalData(result.data, cachedLegalSessionId, cachedLegalFilename);
       toast('📊', 'Legal data ready');
       btn.disabled  = false;
       btn.className = 'btn btn-success';
@@ -2055,7 +2124,7 @@
     try {
       const resp = await fetch('/api/excel-from-json', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: cachedLegalData, filename: cachedLegalFilename }),
+        body: JSON.stringify({ data: cachedLegalData, filename: cachedLegalFilename, session_id: cachedLegalSessionId }),
       });
       if (!resp.ok) {
         const err = await resp.json();
@@ -2086,6 +2155,7 @@
   function renderCombinedData(result) {
     const docs = result.docs;       // [{filename, data}, ...]
     const cd   = result.cross_doc;  // {document_set_overview, overall_assessment, cross_document_issues}
+    activeCiteSession = result.session_id || '';
 
     // Tab 0: Document Set — overview rows + assessment block
     const docRows = docs.map(d => {
@@ -2100,11 +2170,16 @@
       `</div>` +
       ldTable(['Document', 'Type', 'Purpose', 'Effective Date', 'Expiry Date', 'Jurisdiction'], docRows);
 
-    // Helper: flatten field from all docs with source column
+    // Helper: flatten field from all docs with source column + quotes
     function agg(field, mapper) {
-      return docs.flatMap(d =>
-        (d.data[field] || []).map(item => [ldStem(d.filename), ...mapper(item)])
-      );
+      const rows = [], quotes = [];
+      docs.forEach(d => {
+        (d.data[field] || []).forEach(item => {
+          rows.push([ldStem(d.filename), ...mapper(item)]);
+          quotes.push(item.source_quote ? {doc: d.filename, quote: item.source_quote} : null);
+        });
+      });
+      return {rows, quotes};
     }
 
     // Cross-Doc Issues (severity at col 0)
@@ -2113,32 +2188,45 @@
       (i.documents || []).map(ldStem).join(', '),
       i.description, i.recommendation,
     ]);
+    const crossQuotes = (cd.cross_document_issues || []).map(i => {
+      const c = (i.citations || [])[0];
+      return c && c.quote ? {doc: c.document, quote: c.quote} : null;
+    });
 
     // Red Flags (source doc at col 0, severity at col 1)
-    const rfRows = docs.flatMap(d =>
-      (d.data.red_flags || []).map(r =>
-        [ldStem(d.filename), r.severity, r.clause, r.issue, r.recommendation]
-      )
+    const rfRows = [], rfQuotes = [];
+    docs.forEach(d =>
+      (d.data.red_flags || []).forEach(r => {
+        rfRows.push([ldStem(d.filename), r.severity, r.clause, r.issue, r.recommendation]);
+        rfQuotes.push(r.source_quote ? {doc: d.filename, quote: r.source_quote} : null);
+      })
     );
+
+    const _p  = agg('parties',              p => [p.name, p.role, p.jurisdiction]);
+    const _o  = agg('key_obligations',      o => [o.party, o.obligation, o.deadline]);
+    const _d  = agg('key_dates',            x => [x.date, x.event, x.party]);
+    const _f  = agg('financial_terms',      f => [f.item, f.amount, f.party, f.due_date]);
+    const _rl = agg('rights_liabilities',   r => [r.party, r.type, r.description, r.cap]);
+    const _t  = agg('termination_provisions', t => [t.trigger, t.notice_period, t.consequence]);
 
     const panelHtmls = [
       docSetHtml,
       ldTable(['Source Document', 'Name', 'Role', 'Jurisdiction'],
-        agg('parties', p => [p.name, p.role, p.jurisdiction])),
+        _p.rows, null, 0, _p.quotes),
       ldTable(['Source Document', 'Party', 'Obligation', 'Deadline'],
-        agg('key_obligations', o => [o.party, o.obligation, o.deadline])),
+        _o.rows, null, 0, _o.quotes),
       ldTable(['Source Document', 'Date', 'Event', 'Party'],
-        agg('key_dates', x => [x.date, x.event, x.party])),
+        _d.rows, null, 0, _d.quotes),
       ldTable(['Source Document', 'Item', 'Amount', 'Party', 'Due Date'],
-        agg('financial_terms', f => [f.item, f.amount, f.party, f.due_date])),
+        _f.rows, null, 0, _f.quotes),
       ldTable(['Source Document', 'Party', 'Type', 'Description', 'Cap / Limit'],
-        agg('rights_liabilities', r => [r.party, r.type, r.description, r.cap])),
+        _rl.rows, null, 0, _rl.quotes),
       ldTable(['Source Document', 'Trigger', 'Notice Period', 'Consequence'],
-        agg('termination_provisions', t => [t.trigger, t.notice_period, t.consequence])),
+        _t.rows, null, 0, _t.quotes),
       ldTable(['Severity', 'Issue Type', 'Documents', 'Description', 'Recommendation'],
-        crossRows, r => `ld-rf-${(r[0] || '').toLowerCase()}`),
+        crossRows, r => `ld-rf-${(r[0] || '').toLowerCase()}`, 0, crossQuotes),
       ldTable(['Source Document', 'Severity', 'Clause / Topic', 'Issue', 'Recommendation'],
-        rfRows, r => `ld-rf-${(r[1] || '').toLowerCase()}`, 1),
+        rfRows, r => `ld-rf-${(r[1] || '').toLowerCase()}`, 1, rfQuotes),
     ];
 
     document.getElementById('cld-tab-bar').innerHTML =
@@ -2362,6 +2450,47 @@
     toast('⬇', `Saved as ${fname}`);
   }
 
+  /* ── Citation panel ── */
+  async function openCite(doc, quote) {
+    const panel   = document.getElementById('cite-panel');
+    const overlay = document.getElementById('cite-overlay');
+    overlay.classList.add('show');
+    panel.classList.add('open');
+    document.getElementById('cite-panel-doc').textContent = doc;
+    document.getElementById('cite-panel-body').innerHTML =
+      `<p style="color:#94A3B8;font-size:13px;margin-top:48px;text-align:center">Loading…</p>`;
+    try {
+      const p = new URLSearchParams({session: activeCiteSession, doc, quote});
+      const r = await fetch('/api/source-text?' + p);
+      const d = await r.json();
+      if (d.error) {
+        document.getElementById('cite-panel-body').innerHTML =
+          `<p style="color:#EF4444;font-size:13px;padding:16px">${escHtml(d.error)}</p>`;
+        return;
+      }
+      const ctx = d.context || '';
+      const hs = d.highlight_start, he = d.highlight_end;
+      let html;
+      if (hs >= 0 && he > hs) {
+        html = escHtml(ctx.slice(0, hs))
+             + `<mark class="cite-mark">${escHtml(ctx.slice(hs, he))}</mark>`
+             + escHtml(ctx.slice(he));
+      } else {
+        html = escHtml(ctx)
+             + `\n\n<em style="color:#94A3B8;font-size:11px">[Exact location not found — showing document excerpt]</em>`;
+      }
+      document.getElementById('cite-panel-body').innerHTML = `<pre class="cite-text">${html}</pre>`;
+    } catch (e) {
+      document.getElementById('cite-panel-body').innerHTML =
+        `<p style="color:#EF4444;font-size:13px;padding:16px">Failed to load source: ${escHtml(e.message)}</p>`;
+    }
+  }
+
+  function closeCitePanel() {
+    document.getElementById('cite-panel').classList.remove('open');
+    document.getElementById('cite-overlay').classList.remove('show');
+  }
+
   /* ── Copy / Download combined assessment ── */
   function copyCombined() {
     navigator.clipboard.writeText(document.getElementById('combined-body').innerText)
@@ -2372,5 +2501,15 @@
     toast('⬇', 'Saved as combined_legal_assessment.txt');
   }
 </script>
+
+<!-- Citation slide-in panel -->
+<div id="cite-overlay" class="cite-overlay" onclick="closeCitePanel()"></div>
+<div id="cite-panel" class="cite-panel">
+  <div class="cite-panel-hdr">
+    <span id="cite-panel-doc" class="cite-doc-chip"></span>
+    <button class="cite-close" onclick="closeCitePanel()">✕</button>
+  </div>
+  <div id="cite-panel-body" class="cite-panel-body"></div>
+</div>
 </body>
 </html>

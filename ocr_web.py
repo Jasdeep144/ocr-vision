@@ -8,9 +8,12 @@ Open: http://localhost:5000
 import io
 import json
 import os
+import re
 import sys
 import tempfile
+import uuid
 from pathlib import Path
+from urllib.parse import quote as url_quote
 
 from flask import Flask, jsonify, render_template, request, send_file
 
@@ -19,6 +22,75 @@ from ocr_document import make_client, ocr_image_file, ocr_pdf, try_extract_pdf_t
 
 app = Flask(__name__, template_folder="html")
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB
+
+# ---------------------------------------------------------------------------
+# Document text cache — keyed by session UUID, used for citation look-ups
+# ---------------------------------------------------------------------------
+
+DOCUMENT_CACHE: dict[str, dict[str, str]] = {}  # session_id → {filename: full_text}
+MAX_CACHE_SESSIONS = 20
+
+
+def _cache_session(filename_to_text: dict) -> str:
+    if len(DOCUMENT_CACHE) >= MAX_CACHE_SESSIONS:
+        del DOCUMENT_CACHE[next(iter(DOCUMENT_CACHE))]
+    sid = str(uuid.uuid4())
+    DOCUMENT_CACHE[sid] = filename_to_text
+    return sid
+
+
+def find_in_text_with_context(text: str, quote: str, context_chars: int = 700) -> dict:
+    """Locate a (possibly paraphrased) quote in text and return surrounding context.
+
+    Returns {context, highlight_start, highlight_end}.
+    highlight_start == -1 means the passage could not be located.
+    """
+    if not quote or not text:
+        return {"context": text[:context_chars * 2], "highlight_start": -1, "highlight_end": -1}
+
+    lo_text  = text.lower()
+    lo_quote = quote.lower().strip()
+    match_len = len(quote)
+    idx = -1
+
+    # 1 — exact match
+    idx = lo_text.find(lo_quote)
+
+    # 2 — sentence-by-sentence
+    if idx == -1:
+        for sent in re.split(r"(?<=[.!?])\s+", quote):
+            sent = sent.strip()
+            if len(sent) < 20:
+                continue
+            pos = lo_text.find(sent.lower())
+            if pos != -1:
+                idx, match_len = pos, len(sent)
+                break
+
+    # 3 — 6-word sliding phrase windows
+    if idx == -1:
+        words = quote.split()
+        for start in range(0, max(1, len(words) - 5)):
+            phrase = " ".join(words[start:start + 6])
+            if len(phrase) < 20:
+                continue
+            pos = lo_text.find(phrase.lower())
+            if pos != -1:
+                idx, match_len = pos, len(phrase)
+                break
+
+    if idx == -1:
+        return {"context": text[:context_chars * 2], "highlight_start": -1, "highlight_end": -1}
+
+    start = max(0, idx - context_chars // 2)
+    end   = min(len(text), idx + match_len + context_chars // 2)
+    context = text[start:end]
+    return {
+        "context":         context,
+        "highlight_start": idx - start,
+        "highlight_end":   idx - start + match_len,
+    }
+
 
 ALLOWED   = {".pdf", ".docx", ".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp", ".gif", ".webp"}
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".tiff", ".tif", ".bmp", ".gif", ".webp"}
@@ -161,37 +233,40 @@ EXCEL_SUMMARY_PROMPT = (
     "You are a senior legal professional. Analyse the document below and return ONLY a valid JSON object. "
     "No markdown, no code fences, no preamble, no commentary — raw JSON only.\n\n"
     "Follow this exact schema. Keep every string value concise (one sentence maximum). "
-    'Use "N/A" where information is absent. Arrays must never be null — use [] if nothing applies.\n\n'
+    'Use "N/A" where information is absent. Arrays must never be null — use [] if nothing applies.\n'
+    'For every array item, "source_quote" must be 1-2 sentences copied verbatim from the document '
+    'that most directly support that entry. Copy the exact wording — do not paraphrase.\n\n'
     '{\n'
     '  "document_type": "<type and jurisdiction, e.g. Service Agreement — English Law>",\n'
     '  "purpose": "<primary legal purpose in one sentence>",\n'
     '  "effective_date": "<date or Not specified>",\n'
     '  "expiry_date": "<date, Not specified, or Indefinite>",\n'
     '  "parties": [\n'
-    '    {"name": "<full legal name>", "role": "<e.g. Licensor, Employer>", "jurisdiction": "<country/state or N/A>"}\n'
+    '    {"name": "<full legal name>", "role": "<e.g. Licensor, Employer>", "jurisdiction": "<country/state or N/A>", "source_quote": "<verbatim 1-2 sentences>"}\n'
     '  ],\n'
     '  "key_obligations": [\n'
-    '    {"party": "<name>", "obligation": "<concise description>", "deadline": "<date, Ongoing, or N/A>"}\n'
+    '    {"party": "<name>", "obligation": "<concise description>", "deadline": "<date, Ongoing, or N/A>", "source_quote": "<verbatim 1-2 sentences>"}\n'
     '  ],\n'
     '  "key_dates": [\n'
-    '    {"date": "<date or timeframe>", "event": "<concise event name>", "party": "<responsible party or All Parties>"}\n'
+    '    {"date": "<date or timeframe>", "event": "<concise event name>", "party": "<responsible party or All Parties>", "source_quote": "<verbatim 1-2 sentences>"}\n'
     '  ],\n'
     '  "financial_terms": [\n'
-    '    {"item": "<payment type or fee name>", "amount": "<amount and currency>", "party": "<paying party>", "due_date": "<when due or N/A>"}\n'
+    '    {"item": "<payment type or fee name>", "amount": "<amount and currency>", "party": "<paying party>", "due_date": "<when due or N/A>", "source_quote": "<verbatim 1-2 sentences>"}\n'
     '  ],\n'
     '  "rights_liabilities": [\n'
-    '    {"party": "<name>", "type": "<Right or Liability>", "description": "<concise description>", "cap": "<monetary cap, Uncapped, or N/A>"}\n'
+    '    {"party": "<name>", "type": "<Right or Liability>", "description": "<concise description>", "cap": "<monetary cap, Uncapped, or N/A>", "source_quote": "<verbatim 1-2 sentences>"}\n'
     '  ],\n'
     '  "termination_provisions": [\n'
-    '    {"trigger": "<termination event>", "notice_period": "<e.g. 30 days, Immediate, or N/A>", "consequence": "<key consequence>"}\n'
+    '    {"trigger": "<termination event>", "notice_period": "<e.g. 30 days, Immediate, or N/A>", "consequence": "<key consequence>", "source_quote": "<verbatim 1-2 sentences>"}\n'
     '  ],\n'
     '  "governing_law": {\n'
     '    "jurisdiction": "<country/state>",\n'
     '    "applicable_law": "<e.g. Laws of England and Wales>",\n'
-    '    "dispute_resolution": "<e.g. Arbitration — ICC Rules, London>"\n'
+    '    "dispute_resolution": "<e.g. Arbitration — ICC Rules, London>",\n'
+    '    "source_quote": "<verbatim 1-2 sentences from the governing law clause>"\n'
     '  },\n'
     '  "red_flags": [\n'
-    '    {"severity": "<High or Medium or Low>", "clause": "<clause reference or topic>", "issue": "<concise risk>", "recommendation": "<concise advice>"}\n'
+    '    {"severity": "<High or Medium or Low>", "clause": "<clause reference or topic>", "issue": "<concise risk>", "recommendation": "<concise advice>", "source_quote": "<verbatim 1-2 sentences>"}\n'
     '  ],\n'
     '  "overall_assessment": "<2-3 sentence professional assessment of balance, completeness, and key advice>"\n'
     '}\n\n'
@@ -204,7 +279,9 @@ COMBINED_EXCEL_CROSS_DOC_PROMPT = (
     "The structured summaries of each document are provided below. "
     "Analyse them together and return ONLY a valid JSON object — no markdown, no code fences, raw JSON only.\n\n"
     "Follow this exact schema. Keep every string concise (one sentence maximum). "
-    'Use "N/A" where information is absent. Arrays must never be null — use [] if nothing applies.\n\n'
+    'Use "N/A" where information is absent. Arrays must never be null — use [] if nothing applies.\n'
+    'For each cross-document issue, "citations" must list 1-2 verbatim sentences copied exactly '
+    'from the relevant document(s) that evidence the issue. Copy the exact wording — do not paraphrase.\n\n'
     '{\n'
     '  "document_set_overview": "<2-3 sentence description of what this collection represents as a whole>",\n'
     '  "overall_assessment": "<3-4 sentence professional assessment — balance, completeness, consistency, key advice>",\n'
@@ -214,7 +291,10 @@ COMBINED_EXCEL_CROSS_DOC_PROMPT = (
     '      "issue_type": "<e.g. Conflicting Jurisdiction, Overlapping Obligation, Term Mismatch, Missing Counterpart>",\n'
     '      "documents": ["<filename1>", "<filename2>"],\n'
     '      "description": "<concise description of the cross-document issue>",\n'
-    '      "recommendation": "<concise advice>"\n'
+    '      "recommendation": "<concise advice>",\n'
+    '      "citations": [\n'
+    '        {"document": "<filename from documents array>", "quote": "<verbatim 1-2 sentences from that document>"}\n'
+    '      ]\n'
     '    }\n'
     '  ]\n'
     '}\n\n'
@@ -313,7 +393,7 @@ def parse_json_response(raw: str) -> dict:
     return _close_truncated_json(raw)
 
 
-def build_combined_excel(docs: list, cross_doc: dict) -> bytes:
+def build_combined_excel(docs: list, cross_doc: dict, session_id: str = "") -> bytes:
     """Build a combined multi-document Excel workbook from per-doc JSON + cross-doc analysis."""
     from openpyxl import Workbook
     from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
@@ -364,10 +444,23 @@ def build_combined_excel(docs: list, cross_doc: dict) -> bytes:
             best = max((len(str(c.value or "")) for c in col), default=8)
             ws.column_dimensions[letter].width = min(best + 4, max_w)
 
-    def add_table(title, headers, rows, sev_col=None):
+    link_font_c = Font(color="0563C1", underline="single", name="Calibri", size=10)
+
+    def cite_url_c(doc_fn, q):
+        return (
+            f"http://localhost:5000/view-source"
+            f"?session={url_quote(session_id)}"
+            f"&doc={url_quote(doc_fn)}"
+            f"&quote={url_quote(q)}"
+        )
+
+    def add_table(title, headers, rows, sev_col=None, quotes=None):
+        """quotes: parallel list of (doc_filename, quote_text) | None per row."""
+        has_q = quotes and any(q for q in quotes)
+        all_headers = list(headers) + (["Source Quote"] if has_q else [])
         ws = wb.create_sheet(title)
         ws.freeze_panes = "A2"
-        for ci, h in enumerate(headers, 1):
+        for ci, h in enumerate(all_headers, 1):
             c = ws.cell(row=1, column=ci, value=h)
             c.fill = fill(NAVY); c.font = hdr_font()
             c.alignment = wrap(); c.border = thin()
@@ -379,6 +472,20 @@ def build_combined_excel(docs: list, cross_doc: dict) -> bytes:
                 if row_fill:
                     c.fill = row_fill
                 c.font = body_font(); c.alignment = wrap(); c.border = thin()
+            if has_q:
+                qt = quotes[ri - 2] if ri - 2 < len(quotes) else None
+                qcol = len(all_headers)
+                qc = ws.cell(row=ri, column=qcol)
+                if qt and qt[1] and session_id:
+                    qc.value     = qt[1]
+                    qc.hyperlink = cite_url_c(qt[0], qt[1])
+                    qc.font      = link_font_c
+                else:
+                    qc.value = safe(qt[1]) if qt else "N/A"
+                    qc.font  = body_font()
+                if row_fill:
+                    qc.fill = row_fill
+                qc.alignment = wrap(); qc.border = thin()
         if ws.max_row > 1:
             ws.auto_filter.ref = ws.dimensions
         auto_widths(ws)
@@ -450,69 +557,87 @@ def build_combined_excel(docs: list, cross_doc: dict) -> bytes:
 
     # ── Sheets 2-7: Aggregated per-document data ─────────────────────────────
     def agg(field, mapper):
-        rows = []
+        rows, quotes = [], []
         for doc in docs:
-            d = doc.get("data", {})
-            src = stem(doc.get("filename", "document"))
+            d   = doc.get("data", {})
+            fn  = doc.get("filename", "document")
+            src = stem(fn)
             for item in (d.get(field) or []):
                 rows.append([src] + mapper(item))
-        return rows
+                quotes.append((fn, item.get("source_quote") or ""))
+        return rows, quotes
 
+    _p_rows, _p_q = agg("parties", lambda p: [p.get("name"), p.get("role"), p.get("jurisdiction")])
     add_table("Parties",
         ["Source Document", "Name", "Role", "Jurisdiction"],
-        agg("parties", lambda p: [p.get("name"), p.get("role"), p.get("jurisdiction")]))
+        _p_rows, quotes=_p_q)
 
+    _o_rows, _o_q = agg("key_obligations", lambda o: [o.get("party"), o.get("obligation"), o.get("deadline")])
     add_table("Obligations",
         ["Source Document", "Party", "Obligation", "Deadline"],
-        agg("key_obligations", lambda o: [o.get("party"), o.get("obligation"), o.get("deadline")]))
+        _o_rows, quotes=_o_q)
 
+    _d_rows, _d_q = agg("key_dates", lambda x: [x.get("date"), x.get("event"), x.get("party")])
     add_table("Key Dates",
         ["Source Document", "Date", "Event", "Party"],
-        agg("key_dates", lambda x: [x.get("date"), x.get("event"), x.get("party")]))
+        _d_rows, quotes=_d_q)
 
+    _f_rows, _f_q = agg("financial_terms",
+        lambda f: [f.get("item"), f.get("amount"), f.get("party"), f.get("due_date")])
     add_table("Financial Terms",
         ["Source Document", "Item", "Amount", "Party", "Due Date"],
-        agg("financial_terms",
-            lambda f: [f.get("item"), f.get("amount"), f.get("party"), f.get("due_date")]))
+        _f_rows, quotes=_f_q)
 
+    _rl_rows, _rl_q = agg("rights_liabilities",
+        lambda r: [r.get("party"), r.get("type"), r.get("description"), r.get("cap")])
     add_table("Rights & Liabilities",
         ["Source Document", "Party", "Type", "Description", "Cap / Limit"],
-        agg("rights_liabilities",
-            lambda r: [r.get("party"), r.get("type"), r.get("description"), r.get("cap")]))
+        _rl_rows, quotes=_rl_q)
 
+    _t_rows, _t_q = agg("termination_provisions",
+        lambda t: [t.get("trigger"), t.get("notice_period"), t.get("consequence")])
     add_table("Termination",
         ["Source Document", "Trigger", "Notice Period", "Consequence"],
-        agg("termination_provisions",
-            lambda t: [t.get("trigger"), t.get("notice_period"), t.get("consequence")]))
+        _t_rows, quotes=_t_q)
 
     # ── Sheet 8: Cross-Document Issues ───────────────────────────────────────
+    cross_issues = cross_doc.get("cross_document_issues") or []
     cross_rows = [
         [i.get("severity"), i.get("issue_type"),
          ", ".join(i.get("documents") or []),
          i.get("description"), i.get("recommendation")]
-        for i in (cross_doc.get("cross_document_issues") or [])
+        for i in cross_issues
     ]
+    cross_quotes = []
+    for i in cross_issues:
+        cits = i.get("citations") or []
+        if cits:
+            cross_quotes.append((cits[0].get("document", ""), cits[0].get("quote", "")))
+        else:
+            cross_quotes.append(None)
     add_table("Cross-Doc Issues",
         ["Severity", "Issue Type", "Documents", "Description", "Recommendation"],
-        cross_rows, sev_col=0)
+        cross_rows, sev_col=0, quotes=cross_quotes)
 
     # ── Sheet 9: Red Flags (all docs) ────────────────────────────────────────
-    rf_rows = []
+    rf_rows, rf_quotes = [], []
     for doc in docs:
-        src = stem(doc.get("filename", "document"))
+        fn  = doc.get("filename", "document")
+        src = stem(fn)
         for r in (doc.get("data", {}).get("red_flags") or []):
             rf_rows.append([src, r.get("severity"), r.get("clause"),
                             r.get("issue"), r.get("recommendation")])
+            rf_quotes.append((fn, r.get("source_quote") or ""))
     add_table("Red Flags",
         ["Source Document", "Severity", "Clause / Topic", "Issue", "Recommendation"],
-        rf_rows, sev_col=1)
+        rf_rows, sev_col=1, quotes=rf_quotes)
 
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
 
 
-def build_excel_summary(data: dict, doc_filename: str) -> bytes:
+def build_excel_summary(data: dict, doc_filename: str, session_id: str = "") -> bytes:
     """Build a styled multi-sheet Excel workbook from the structured legal summary JSON."""
     from openpyxl import Workbook
     from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
@@ -560,12 +685,25 @@ def build_excel_summary(data: dict, doc_filename: str) -> bytes:
             best = max((len(str(c.value or "")) for c in col), default=8)
             ws.column_dimensions[letter].width = min(best + 4, max_w)
 
+    link_font = Font(color="0563C1", underline="single", name="Calibri", size=10)
+
+    def cite_url(doc_fn, q):
+        return (
+            f"http://localhost:5000/view-source"
+            f"?session={url_quote(session_id)}"
+            f"&doc={url_quote(doc_fn)}"
+            f"&quote={url_quote(q)}"
+        )
+
     # ── Reusable table-sheet builder ─────────────────────────────────────────
-    def add_table(title, headers, rows, sev_col=None):
+    def add_table(title, headers, rows, sev_col=None, quotes=None):
+        """quotes: parallel list of (doc_filename, quote_text) | None per row."""
+        has_q = quotes and any(q for q in quotes)
+        all_headers = list(headers) + (["Source Quote"] if has_q else [])
         ws = wb.create_sheet(title)
         ws.freeze_panes = "A2"
         # Header row
-        for ci, h in enumerate(headers, 1):
+        for ci, h in enumerate(all_headers, 1):
             c = ws.cell(row=1, column=ci, value=h)
             c.fill = fill(NAVY)
             c.font = hdr_font()
@@ -582,6 +720,21 @@ def build_excel_summary(data: dict, doc_filename: str) -> bytes:
                 c.font      = body_font()
                 c.alignment = wrap()
                 c.border    = thin()
+            if has_q:
+                qt = quotes[ri - 2] if ri - 2 < len(quotes) else None
+                qcol = len(all_headers)
+                qc = ws.cell(row=ri, column=qcol)
+                if qt and qt[1] and session_id:
+                    qc.value     = qt[1]
+                    qc.hyperlink = cite_url(qt[0], qt[1])
+                    qc.font      = link_font
+                else:
+                    qc.value = safe(qt[1]) if qt else "N/A"
+                    qc.font  = body_font()
+                if row_fill:
+                    qc.fill = row_fill
+                qc.alignment = wrap()
+                qc.border    = thin()
         if ws.max_row > 1:
             ws.auto_filter.ref = ws.dimensions
         auto_widths(ws)
@@ -623,48 +776,59 @@ def build_excel_summary(data: dict, doc_filename: str) -> bytes:
     ws_ov.column_dimensions["A"].width = 22
     ws_ov.column_dimensions["B"].width = 82
 
+    fn = doc_filename
+
+    def sq(items, key="source_quote"):
+        return [(fn, i.get(key) or "") for i in (items or [])]
+
     # ── Sheet 2: Parties ─────────────────────────────────────────────────────
+    _parties = data.get("parties") or []
     add_table("Parties",
         ["Name", "Role", "Jurisdiction"],
-        [[p.get("name"), p.get("role"), p.get("jurisdiction")]
-         for p in (data.get("parties") or [])])
+        [[p.get("name"), p.get("role"), p.get("jurisdiction")] for p in _parties],
+        quotes=sq(_parties))
 
     # ── Sheet 3: Key Obligations ─────────────────────────────────────────────
+    _obls = data.get("key_obligations") or []
     add_table("Obligations",
         ["Party", "Obligation", "Deadline"],
-        [[o.get("party"), o.get("obligation"), o.get("deadline")]
-         for o in (data.get("key_obligations") or [])])
+        [[o.get("party"), o.get("obligation"), o.get("deadline")] for o in _obls],
+        quotes=sq(_obls))
 
     # ── Sheet 4: Key Dates ───────────────────────────────────────────────────
+    _dates = data.get("key_dates") or []
     add_table("Key Dates",
         ["Date", "Event", "Party"],
-        [[d.get("date"), d.get("event"), d.get("party")]
-         for d in (data.get("key_dates") or [])])
+        [[d.get("date"), d.get("event"), d.get("party")] for d in _dates],
+        quotes=sq(_dates))
 
     # ── Sheet 5: Financial Terms ─────────────────────────────────────────────
+    _fin = data.get("financial_terms") or []
     add_table("Financial Terms",
         ["Item", "Amount", "Party", "Due Date"],
-        [[f.get("item"), f.get("amount"), f.get("party"), f.get("due_date")]
-         for f in (data.get("financial_terms") or [])])
+        [[f.get("item"), f.get("amount"), f.get("party"), f.get("due_date")] for f in _fin],
+        quotes=sq(_fin))
 
     # ── Sheet 6: Rights & Liabilities ───────────────────────────────────────
+    _rl = data.get("rights_liabilities") or []
     add_table("Rights & Liabilities",
         ["Party", "Type", "Description", "Cap / Limit"],
-        [[r.get("party"), r.get("type"), r.get("description"), r.get("cap")]
-         for r in (data.get("rights_liabilities") or [])])
+        [[r.get("party"), r.get("type"), r.get("description"), r.get("cap")] for r in _rl],
+        quotes=sq(_rl))
 
     # ── Sheet 7: Termination ─────────────────────────────────────────────────
+    _term = data.get("termination_provisions") or []
     add_table("Termination",
         ["Trigger", "Notice Period", "Consequence"],
-        [[t.get("trigger"), t.get("notice_period"), t.get("consequence")]
-         for t in (data.get("termination_provisions") or [])])
+        [[t.get("trigger"), t.get("notice_period"), t.get("consequence")] for t in _term],
+        quotes=sq(_term))
 
     # ── Sheet 8: Red Flags (severity-coloured) ───────────────────────────────
+    _rf = data.get("red_flags") or []
     add_table("Red Flags",
         ["Severity", "Clause / Topic", "Issue", "Recommendation"],
-        [[r.get("severity"), r.get("clause"), r.get("issue"), r.get("recommendation")]
-         for r in (data.get("red_flags") or [])],
-        sev_col=0)
+        [[r.get("severity"), r.get("clause"), r.get("issue"), r.get("recommendation")] for r in _rf],
+        sev_col=0, quotes=sq(_rf))
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -879,6 +1043,8 @@ def combined_legal_data_endpoint():
     client = make_client(api_key)
 
     try:
+        session_id = _cache_session({doc["filename"]: doc.get("text", "") for doc in docs})
+
         # Pass 1 — structured JSON for each document
         per_doc: list[dict] = []
         for doc in docs:
@@ -905,7 +1071,7 @@ def combined_legal_data_endpoint():
                                   + "\n\n" + summaries}],
         )
         cross_doc = parse_json_response(cross_resp.content[0].text)
-        return jsonify({"docs": per_doc, "cross_doc": cross_doc})
+        return jsonify({"docs": per_doc, "cross_doc": cross_doc, "session_id": session_id})
 
     except json.JSONDecodeError as e:
         return jsonify({"error": f"Failed to parse structured response: {e}"}), 500
@@ -916,13 +1082,14 @@ def combined_legal_data_endpoint():
 @app.route("/api/combined-excel-from-json", methods=["POST"])
 def combined_excel_from_json_endpoint():
     """Build combined xlsx from cached JSON — no Claude call."""
-    body      = request.get_json()
-    docs      = (body or {}).get("docs")
-    cross_doc = (body or {}).get("cross_doc")
+    body       = request.get_json()
+    docs       = (body or {}).get("docs")
+    cross_doc  = (body or {}).get("cross_doc")
+    session_id = (body or {}).get("session_id", "")
     if not docs or not cross_doc:
         return jsonify({"error": "Missing docs or cross_doc"}), 400
     try:
-        excel_bytes = build_combined_excel(docs, cross_doc)
+        excel_bytes = build_combined_excel(docs, cross_doc, session_id)
         return send_file(
             io.BytesIO(excel_bytes),
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -950,6 +1117,7 @@ def legal_data_endpoint():
     client = make_client(api_key)
 
     try:
+        session_id = _cache_session({filename: text})
         condensed = prepare_text_for_summary(text, client, model)
         response = client.messages.create(
             model=model,
@@ -957,7 +1125,7 @@ def legal_data_endpoint():
             messages=[{"role": "user", "content": EXCEL_SUMMARY_PROMPT + "\n\n---\n\n" + condensed}],
         )
         summary_data = parse_json_response(response.content[0].text)
-        return jsonify({"data": summary_data, "filename": filename})
+        return jsonify({"data": summary_data, "filename": filename, "session_id": session_id})
     except json.JSONDecodeError as e:
         return jsonify({"error": f"Failed to parse structured response: {e}"}), 500
     except Exception as exc:
@@ -970,11 +1138,12 @@ def excel_from_json_endpoint():
     body         = request.get_json()
     summary_data = (body or {}).get("data")
     filename     = (body or {}).get("filename", "document")
+    session_id   = (body or {}).get("session_id", "")
     if not summary_data:
         return jsonify({"error": "No data provided"}), 400
 
     try:
-        excel_bytes = build_excel_summary(summary_data, filename)
+        excel_bytes = build_excel_summary(summary_data, filename, session_id)
         stem    = Path(filename).stem
         dl_name = f"{stem}_legal_summary.xlsx"
         return send_file(
@@ -985,6 +1154,108 @@ def excel_from_json_endpoint():
         )
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/source-text")
+def source_text_endpoint():
+    """Return context around a cited passage for the web-viewer citation panel."""
+    session_id = request.args.get("session", "")
+    filename   = request.args.get("doc", "")
+    quote      = request.args.get("quote", "")
+
+    session_docs = DOCUMENT_CACHE.get(session_id)
+    if not session_docs:
+        return jsonify({"error": "Session not found or expired — re-run the analysis"}), 404
+
+    text = session_docs.get(filename, "")
+    if not text:
+        for fn, t in session_docs.items():
+            if filename in fn or fn in filename:
+                text = t
+                filename = fn
+                break
+    if not text:
+        return jsonify({"error": f"Document '{filename}' not found in session"}), 404
+
+    result = find_in_text_with_context(text, quote)
+    result["filename"] = filename
+    return jsonify(result)
+
+
+@app.route("/view-source")
+def view_source_page():
+    """Simple HTML page showing cited passage with highlighting — used by .xlsx hyperlinks."""
+    session_id = request.args.get("session", "")
+    filename   = request.args.get("doc", "")
+    quote      = request.args.get("quote", "")
+
+    session_docs = DOCUMENT_CACHE.get(session_id)
+    if not session_docs:
+        return (
+            "<!doctype html><html><body style='font-family:sans-serif;padding:40px;color:#374151'>"
+            "<h2 style='color:#EF4444'>Session Expired</h2>"
+            "<p>The citation session has expired (server was restarted).</p>"
+            "<p>Re-run the Excel analysis in the web app to generate fresh citation links.</p>"
+            "<p style='margin-top:20px;color:#6B7280;font-size:13px'>"
+            f"<strong>Document:</strong> {filename}<br>"
+            f"<strong>Quote:</strong> {quote}"
+            "</p></body></html>",
+            404,
+        )
+
+    text = session_docs.get(filename, "")
+    if not text:
+        for fn, t in session_docs.items():
+            if filename in fn or fn in filename:
+                text, filename = t, fn
+                break
+    if not text:
+        return (
+            "<!doctype html><html><body style='font-family:sans-serif;padding:40px;color:#374151'>"
+            f"<h2 style='color:#EF4444'>Document Not Found</h2>"
+            f"<p>'{filename}' is not in this session.</p></body></html>",
+            404,
+        )
+
+    r = find_in_text_with_context(text, quote)
+    ctx = r["context"]
+    hs, he = r["highlight_start"], r["highlight_end"]
+
+    import html as html_mod
+    if hs >= 0:
+        body_html = (
+            html_mod.escape(ctx[:hs])
+            + f'<mark style="background:#FEF08A;border-radius:2px;padding:0 2px">{html_mod.escape(ctx[hs:he])}</mark>'
+            + html_mod.escape(ctx[he:])
+        )
+        note = ""
+    else:
+        body_html = html_mod.escape(ctx)
+        note = "<p style='color:#94A3B8;font-size:12px;margin-bottom:12px'>[Exact location not found — showing document excerpt]</p>"
+
+    page = f"""<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Source: {html_mod.escape(filename)}</title>
+  <style>
+    body {{font-family: Calibri, sans-serif; padding: 32px 48px; max-width: 860px;
+           margin: 0 auto; color: #374151; background: #F9FAFB}}
+    h2   {{font-size: 15px; color: #1E3A5F; margin-bottom: 4px}}
+    .doc {{font-size: 12px; color: #6B7280; margin-bottom: 20px}}
+    pre  {{white-space: pre-wrap; font-family: inherit; font-size: 13px;
+           line-height: 1.75; background: #fff; border: 1px solid #E2E8F0;
+           border-radius: 6px; padding: 20px 24px}}
+  </style>
+</head>
+<body>
+  <h2>Source Reference</h2>
+  <p class="doc">{html_mod.escape(filename)}</p>
+  {note}
+  <pre>{body_html}</pre>
+</body>
+</html>"""
+    return page
 
 
 if __name__ == "__main__":

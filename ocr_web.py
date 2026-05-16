@@ -40,7 +40,7 @@ def _cache_session(filename_to_text: dict) -> str:
 
 
 def find_in_text_with_context(text: str, quote: str, context_chars: int = 700) -> dict:
-    """Locate a (possibly paraphrased) quote in text and return surrounding context.
+    """Locate a quote in text, tolerating whitespace differences and partial matches.
 
     Returns {context, highlight_start, highlight_end}.
     highlight_start == -1 means the passage could not be located.
@@ -48,43 +48,75 @@ def find_in_text_with_context(text: str, quote: str, context_chars: int = 700) -
     if not quote or not text:
         return {"context": text[:context_chars * 2], "highlight_start": -1, "highlight_end": -1}
 
-    lo_text  = text.lower()
-    lo_quote = quote.lower().strip()
-    match_len = len(quote)
-    idx = -1
+    # Normalize whitespace so OCR newlines inside sentences don't block matching
+    norm_text  = re.sub(r'\s+', ' ', text).strip()
+    norm_quote = re.sub(r'\s+', ' ', quote).strip()
+    lo_norm    = norm_text.lower()
 
-    # 1 — exact match
-    idx = lo_text.find(lo_quote)
+    idx, match_len = -1, len(norm_quote)
 
-    # 2 — sentence-by-sentence
+    # 1 — exact match on normalized text
+    pos = lo_norm.find(norm_quote.lower())
+    if pos != -1:
+        idx, match_len = pos, len(norm_quote)
+
+    # 2 — sentence-by-sentence on normalized text
     if idx == -1:
-        for sent in re.split(r"(?<=[.!?])\s+", quote):
+        for sent in re.split(r'(?<=[.!?])\s+', norm_quote):
             sent = sent.strip()
             if len(sent) < 20:
                 continue
-            pos = lo_text.find(sent.lower())
+            pos = lo_norm.find(sent.lower())
             if pos != -1:
                 idx, match_len = pos, len(sent)
                 break
 
-    # 3 — 6-word sliding phrase windows
+    # 3 — progressive prefix shrinking: 80% → 60% → 40% of normalized quote
     if idx == -1:
-        words = quote.split()
-        for start in range(0, max(1, len(words) - 5)):
-            phrase = " ".join(words[start:start + 6])
-            if len(phrase) < 20:
+        n_words = norm_quote.split()
+        for pct in (0.8, 0.6, 0.4):
+            prefix = ' '.join(n_words[:max(4, int(len(n_words) * pct))])
+            if len(prefix) < 15:
                 continue
-            pos = lo_text.find(phrase.lower())
+            pos = lo_norm.find(prefix.lower())
+            if pos != -1:
+                idx, match_len = pos, len(prefix)
+                break
+
+    # 4 — 6-word sliding phrase windows on normalized text
+    if idx == -1:
+        words = norm_quote.split()
+        for start in range(0, max(1, len(words) - 5)):
+            phrase = ' '.join(words[start:start + 6])
+            if len(phrase) < 15:
+                continue
+            pos = lo_norm.find(phrase.lower())
             if pos != -1:
                 idx, match_len = pos, len(phrase)
                 break
 
+    # 5 — token-overlap fallback: find the window with the most shared content words
     if idx == -1:
-        return {"context": text[:context_chars * 2], "highlight_start": -1, "highlight_end": -1}
+        q_tokens = {w.lower() for w in norm_quote.split() if len(w) >= 4}
+        if q_tokens:
+            threshold = max(2, len(q_tokens) // 2)
+            t_words   = norm_text.split()
+            window    = min(40, max(len(norm_quote.split()) + 10, 20))
+            best_score, best_wi = threshold - 1, -1
+            for wi in range(max(1, len(t_words) - window + 1)):
+                score = len(q_tokens & {w.lower() for w in t_words[wi:wi + window]})
+                if score > best_score:
+                    best_score, best_wi = score, wi
+            if best_wi >= 0:
+                char_pos = len(' '.join(t_words[:best_wi])) + (1 if best_wi > 0 else 0)
+                idx, match_len = char_pos, len(' '.join(t_words[best_wi:best_wi + window]))
+
+    if idx == -1:
+        return {"context": norm_text[:context_chars * 2], "highlight_start": -1, "highlight_end": -1}
 
     start = max(0, idx - context_chars // 2)
-    end   = min(len(text), idx + match_len + context_chars // 2)
-    context = text[start:end]
+    end   = min(len(norm_text), idx + match_len + context_chars // 2)
+    context = norm_text[start:end]
     return {
         "context":         context,
         "highlight_start": idx - start,
@@ -1043,7 +1075,8 @@ def combined_legal_data_endpoint():
     client = make_client(api_key)
 
     try:
-        session_id = _cache_session({doc["filename"]: doc.get("text", "") for doc in docs})
+        text_cache = {doc["filename"]: doc.get("text", "") for doc in docs}
+        session_id = _cache_session(text_cache)
 
         # Pass 1 — structured JSON for each document
         per_doc: list[dict] = []
@@ -1051,6 +1084,7 @@ def combined_legal_data_endpoint():
             text     = doc.get("text", "").strip()
             filename = doc.get("filename", "document")
             condensed = prepare_text_for_summary(text, client, model)
+            text_cache[f"{filename}::condensed"] = condensed
             resp = client.messages.create(
                 model=model, max_tokens=8192,
                 messages=[{"role": "user",
@@ -1117,8 +1151,10 @@ def legal_data_endpoint():
     client = make_client(api_key)
 
     try:
-        session_id = _cache_session({filename: text})
-        condensed = prepare_text_for_summary(text, client, model)
+        text_cache = {filename: text}
+        session_id = _cache_session(text_cache)
+        condensed  = prepare_text_for_summary(text, client, model)
+        text_cache[f"{filename}::condensed"] = condensed
         response = client.messages.create(
             model=model,
             max_tokens=8192,
@@ -1178,6 +1214,13 @@ def source_text_endpoint():
         return jsonify({"error": f"Document '{filename}' not found in session"}), 404
 
     result = find_in_text_with_context(text, quote)
+    if result["highlight_start"] == -1:
+        condensed_text = session_docs.get(f"{filename}::condensed", "")
+        if condensed_text:
+            r2 = find_in_text_with_context(condensed_text, quote)
+            if r2["highlight_start"] != -1:
+                r2["filename"] = filename
+                return jsonify(r2)
     result["filename"] = filename
     return jsonify(result)
 
@@ -1218,6 +1261,12 @@ def view_source_page():
         )
 
     r = find_in_text_with_context(text, quote)
+    if r["highlight_start"] == -1:
+        condensed_text = session_docs.get(f"{filename}::condensed", "")
+        if condensed_text:
+            r2 = find_in_text_with_context(condensed_text, quote)
+            if r2["highlight_start"] != -1:
+                r = r2
     ctx = r["context"]
     hs, he = r["highlight_start"], r["highlight_end"]
 

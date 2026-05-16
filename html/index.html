@@ -1998,7 +1998,7 @@
       if (hasQ) {
         const q = quotes[ri];
         citeTd = (q && q.quote)
-          ? `<td><button class="cite-btn" onclick="openCite(${JSON.stringify(q.doc)},${JSON.stringify(q.quote)})">↗</button></td>`
+          ? `<td><button class="cite-btn" data-doc="${escHtml(q.doc || '')}" data-quote="${escHtml(q.quote || '')}" onclick="openCiteBtn(this)">↗</button></td>`
           : '<td></td>';
       }
       return `<tr${cls}>${tds}${citeTd}</tr>`;
@@ -2451,6 +2451,10 @@
   }
 
   /* ── Citation panel ── */
+  function openCiteBtn(btn) {
+    openCite(btn.dataset.doc, btn.dataset.quote);
+  }
+
   async function openCite(doc, quote) {
     const panel   = document.getElementById('cite-panel');
     const overlay = document.getElementById('cite-overlay');

@@ -222,13 +222,71 @@ COMBINED_EXCEL_CROSS_DOC_PROMPT = (
 )
 
 
+def _close_truncated_json(raw: str) -> dict:
+    """Repair JSON truncated at the token limit by rolling back to the nearest safe cut-point.
+
+    Strategy:
+    - Walk the string once, tracking string/escape state and bracket depth.
+    - Record every position that is a valid rollback point:
+        * after any closing } or ] at any depth
+        * after any , at depth >= 1 (between items/properties)
+    - Try cut-points from last-to-first (minimal data loss first).
+    - For each cut, strip a trailing comma and append the closing characters
+      needed to seal all still-open structures, then attempt json.loads.
+    - The first attempt that parses cleanly is returned.
+    """
+    in_str  = False
+    esc     = False
+    depth   = 0
+    stack: list[str]             = []
+    safe:  list[tuple[int, list]] = []  # (position, stack snapshot)
+
+    for i, ch in enumerate(raw):
+        if esc:
+            esc = False
+            continue
+        if ch == "\\" and in_str:
+            esc = True
+            continue
+        if ch == '"':
+            in_str = not in_str
+            continue
+        if in_str:
+            continue
+
+        if ch in ("{", "["):
+            depth += 1
+            stack.append("}" if ch == "{" else "]")
+        elif ch in ("}", "]"):
+            depth -= 1
+            if stack:
+                stack.pop()
+            safe.append((i + 1, list(stack)))   # after every closing bracket
+        elif ch == "," and depth >= 1:
+            safe.append((i, list(stack)))        # after every comma inside structure
+
+    # Try rollback points from last to first (least data loss first)
+    for pos, stk in reversed(safe):
+        candidate = raw[:pos].rstrip()
+        if candidate.endswith(","):
+            candidate = candidate[:-1]
+        closing = "".join(reversed(stk))
+        try:
+            return json.loads(candidate + closing)
+        except json.JSONDecodeError:
+            continue
+
+    raise json.JSONDecodeError("Cannot repair truncated JSON", raw, 0)
+
+
 def parse_json_response(raw: str) -> dict:
     """Extract and parse a JSON object from a model response.
 
-    Handles three common failure modes:
-      1. Markdown code fences  (```json ... ```)
-      2. Preamble text         ("Here is the analysis:\n{...")
-      3. Postamble text        ("{...}\nI hope this helps!")
+    Handles four failure modes:
+      1. Markdown code fences  — ```json ... ```
+      2. Preamble text         — "Here is the analysis:\\n{..."
+      3. Postamble text        — "{...}\\nHope this helps!"
+      4. Truncated JSON        — response cut at token limit mid-object/array
     """
     raw = raw.strip()
 
@@ -245,7 +303,14 @@ def parse_json_response(raw: str) -> dict:
     if start != -1 and end > start:
         raw = raw[start:end]
 
-    return json.loads(raw)
+    # Fast path — well-formed JSON
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+
+    # Slow path — attempt to close truncated JSON and retry
+    return _close_truncated_json(raw)
 
 
 def build_combined_excel(docs: list, cross_doc: dict) -> bytes:
@@ -717,7 +782,7 @@ def legal_summary_endpoint():
         condensed = prepare_text_for_summary(text, client, model)
         response = client.messages.create(
             model=model,
-            max_tokens=4096,
+            max_tokens=8192,
             messages=[{"role": "user", "content": LEGAL_SUMMARY_PROMPT + "\n\n---\n\n" + condensed}],
         )
         return jsonify({"summary": response.content[0].text})
@@ -778,7 +843,7 @@ def excel_summary_endpoint():
         condensed = prepare_text_for_summary(text, client, model)
         response = client.messages.create(
             model=model,
-            max_tokens=4096,
+            max_tokens=8192,
             messages=[{"role": "user", "content": EXCEL_SUMMARY_PROMPT + "\n\n---\n\n" + condensed}],
         )
         summary_data = parse_json_response(response.content[0].text)
@@ -821,7 +886,7 @@ def combined_legal_data_endpoint():
             filename = doc.get("filename", "document")
             condensed = prepare_text_for_summary(text, client, model)
             resp = client.messages.create(
-                model=model, max_tokens=4096,
+                model=model, max_tokens=8192,
                 messages=[{"role": "user",
                            "content": EXCEL_SUMMARY_PROMPT + "\n\n---\n\n" + condensed}],
             )
@@ -834,7 +899,7 @@ def combined_legal_data_endpoint():
             for i, r in enumerate(per_doc)
         )
         cross_resp = client.messages.create(
-            model=model, max_tokens=4096,
+            model=model, max_tokens=8192,
             messages=[{"role": "user",
                        "content": COMBINED_EXCEL_CROSS_DOC_PROMPT.format(n=len(docs))
                                   + "\n\n" + summaries}],
@@ -888,7 +953,7 @@ def legal_data_endpoint():
         condensed = prepare_text_for_summary(text, client, model)
         response = client.messages.create(
             model=model,
-            max_tokens=4096,
+            max_tokens=8192,
             messages=[{"role": "user", "content": EXCEL_SUMMARY_PROMPT + "\n\n---\n\n" + condensed}],
         )
         summary_data = parse_json_response(response.content[0].text)
